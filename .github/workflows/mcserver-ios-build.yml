@@ -1,0 +1,52 @@
+name: MCServer iOS development build
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/mcserver-ios-build.yml']
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    steps:
+      - name: Fetch verified MCServer source release
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json,hashlib,zipfile,io,pathlib,os
+          req=urllib.request.Request('https://api.github.com/repos/allie-31234131/mcserver-modpack/releases/tags/mcserver-assets',headers={'User-Agent':'MCServer-iOS-CI'})
+          release=json.load(urllib.request.urlopen(req))
+          candidates=[a for a in release['assets'] if a['name'].startswith('MCServer-iOS-v0.1.0-source-') and a['name'].endswith('.zip')]
+          if not candidates:raise SystemExit('No iOS source package published')
+          asset=max(candidates,key=lambda a:a['id'])
+          data=urllib.request.urlopen(asset['browser_download_url']).read()
+          if asset.get('digest')!='sha256:'+hashlib.sha256(data).hexdigest():raise SystemExit('Source package digest mismatch')
+          root=pathlib.Path('mcserver-ios').resolve();root.mkdir()
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              for entry in z.infolist():
+                  dest=(root/entry.filename).resolve()
+                  if not dest.is_relative_to(root) or (entry.external_attr>>16)&0o170000==0o120000:raise SystemExit('Unsafe archive entry')
+              z.extractall(root)
+          PY
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+      - name: Prepare macOS compiler tools
+        run: |
+          brew install cmake make ldid
+          rustup toolchain install nightly --profile minimal
+          rustup target add aarch64-apple-ios --toolchain nightly
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Build and inspect the iOS application
+        run: /bin/bash mcserver-ios/source/build_cloud.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MCServer-iOS-development-personal-sign
+          path: mcserver-ios/source/dist/*
+          if-no-files-found: error
+          retention-days: 14
