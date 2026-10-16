@@ -9,6 +9,7 @@ brew install llvm@22 lld@22 cmake ninja nasm
 llvm_prefix="$(brew --prefix llvm@22)"
 export PATH="$llvm_prefix/bin:$(brew --prefix lld@22)/bin:$PATH"
 export CC="$llvm_prefix/bin/clang" CXX="$llvm_prefix/bin/clang++"
+export AR="$llvm_prefix/bin/llvm-ar" RANLIB="$llvm_prefix/bin/llvm-ranlib"
 python3 -m venv "$root/build-venv"
 source "$root/build-venv/bin/activate"
 python -m pip install 'conan==2.29.1'
@@ -62,7 +63,7 @@ tools.build:compiler_executables={"c":"$CC","cpp":"$CXX"}
 tools.build:cxxflags=["-nostdinc++","-isystem","$runtime_prefix/include/c++/v1","-D_LIBCPP_ABI_VERSION=2","-D_LIBCPP_DISABLE_AVAILABILITY"]
 tools.build:sharedlinkflags=["-nostdlib++","-L$runtime_prefix/lib","-lc++_static"]
 tools.build:exelinkflags=["-nostdlib++","-L$runtime_prefix/lib","-lc++_static"]
-tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5","CMAKE_OSX_ARCHITECTURES":"arm64","CMAKE_LINKER_TYPE":"LLD","HAS_MACOS_STATIC_LIBCXX":True}
+tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5","CMAKE_OSX_ARCHITECTURES":"arm64","CMAKE_LINKER_TYPE":"LLD","CMAKE_AR":"$AR","CMAKE_RANLIB":"$RANLIB","CMAKE_C_COMPILER_AR":"$AR","CMAKE_CXX_COMPILER_AR":"$AR","CMAKE_C_COMPILER_RANLIB":"$RANLIB","CMAKE_CXX_COMPILER_RANLIB":"$RANLIB","HAS_MACOS_STATIC_LIBCXX":True}
 EOF
 bash bootstrap.sh setup
 bash bootstrap.sh build native
