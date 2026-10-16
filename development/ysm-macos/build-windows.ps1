@@ -21,14 +21,17 @@ try {
     if (-not (Test-Path -LiteralPath "$root/native/.git")) {
         New-Item -ItemType Directory -Force -Path "$root/native" | Out-Null
         git -C "$root/native" init
+        git -C "$root/native" config core.autocrlf false
         git -C "$root/native" remote add origin https://github.com/YesSteveModel/YesSteveModel-Native.git
         git -C "$root/native" fetch --depth 1 origin e9ac162492a97c7222f652c41624ca150f450354
         git -C "$root/native" checkout --detach e9ac162492a97c7222f652c41624ca150f450354
         if ($LASTEXITCODE -ne 0) { throw 'Native checkout failed' }
     }
-    git -C "$root/native" apply --check "$root/patches/native.patch"
+    $patch = "$root/patches/native.patch"
+    [System.IO.File]::WriteAllText($patch, [System.IO.File]::ReadAllText($patch).Replace("`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
+    git -C "$root/native" apply --check $patch
     if ($LASTEXITCODE -ne 0) { throw 'Native patch check failed' }
-    git -C "$root/native" apply "$root/patches/native.patch"
+    git -C "$root/native" apply $patch
     $env:CC = "$llvm/clang-cl.exe"
     $env:CXX = "$llvm/clang-cl.exe"
     $env:CONAN_HOME = "$root/native/conan/cache"
