@@ -9,7 +9,7 @@ on:
         default: macos
   push:
     branches: [ysm-macos-development]
-    paths: ['development/ysm-macos/**', '.github/workflows/mcserver-ysm-macos-build.yml']
+    paths: ['development/ysm-macos/build-native.sh', 'development/ysm-macos/build-java.sh', 'development/ysm-macos/build-neoforge.sh', 'development/ysm-macos/patches/**', '.github/workflows/mcserver-ysm-macos-build.yml']
 permissions:
   contents: read
 concurrency:
@@ -46,6 +46,12 @@ jobs:
         run: bash development/ysm-macos/build-native.sh
       - name: Build and test the Java integration
         run: bash development/ysm-macos/build-java.sh
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and test the NeoForge 1.21.1 port
+        run: bash development/ysm-macos/build-neoforge.sh
       - name: Retain the complete static runtime after downstream failures
         if: always() && steps.runtime-cache.outputs.cache-hit != 'true' && hashFiles('development/ysm-macos/static-runtime/lib/libc++_static.a') != ''
         uses: actions/cache/save@v4
