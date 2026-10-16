@@ -1,0 +1,27 @@
+diff --git a/third-party/jpeg-turbo/conandata.yml b/third-party/jpeg-turbo/conandata.yml
+index 1867808..7e04f8d 100644
+--- a/third-party/jpeg-turbo/conandata.yml
++++ b/third-party/jpeg-turbo/conandata.yml
+@@ -7,6 +7,7 @@ patches:
+   3.1.90:
+   - patch_file: patches/jpeg-turbo.patch
+   - patch_file: patches/jpeg-turbo-mimalloc.patch
++  - patch_file: patches/jpeg-turbo-respect-disabled-tests.patch
+ requirements:
+ - mimalloc/3.5.3@ysm/stable
+ build:
+diff --git a/third-party/jpeg-turbo/patches/jpeg-turbo-respect-disabled-tests.patch b/third-party/jpeg-turbo/patches/jpeg-turbo-respect-disabled-tests.patch
+new file mode 100644
+index 0000000..78225f4
+--- /dev/null
++++ b/third-party/jpeg-turbo/patches/jpeg-turbo-respect-disabled-tests.patch
+@@ -0,0 +1,9 @@
++diff --git a/simd/CMakeLists.txt b/simd/CMakeLists.txt
++--- a/simd/CMakeLists.txt
+++++ b/simd/CMakeLists.txt
++@@ -1,4 +1,4 @@
++-if(WITH_SIMD AND ENABLE_STATIC)
+++if(WITH_SIMD AND ENABLE_STATIC AND WITH_TESTS)
++   add_executable(simdcoverage simdcoverage.c)
++   target_link_libraries(simdcoverage jpeg-static)
++ endif()
