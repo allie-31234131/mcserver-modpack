@@ -148,7 +148,7 @@ index 0000000..a642d12
 +    }
 +}
 diff --git a/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java b/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java
-index 6a41957..1bb63e3 100644
+index 6a41957..5769560 100644
 --- a/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java
 +++ b/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java
 @@ -13,7 +13,6 @@ import net.minecraftforge.fml.ModLoadingWarning;
@@ -167,7 +167,21 @@ index 6a41957..1bb63e3 100644
  
      /**
       * 在开发环境中运行时，Native 库的路径环境变量
-@@ -216,6 +216,10 @@ public final class NativeLibUtil {
+@@ -103,7 +103,12 @@ public final class NativeLibUtil {
+         String libPath = getDevLibraryPath();
+ 
+         if (libPath == null) {
+-            libPath = setupLib();
++            try {
++                libPath = setupLib();
++            } catch (IOException | java.io.UncheckedIOException | SecurityException failure) {
++                failLibraryLoad(failure);
++                return;
++            }
+             if (libPath == null) {
+                 return;
+             }
+@@ -216,6 +221,10 @@ public final class NativeLibUtil {
  
          // 准备提取目录
          Path extractPath = prepareExtractPath(config.targetDir);
@@ -178,7 +192,7 @@ index 6a41957..1bb63e3 100644
          String libPath = extractPath
                  .resolve(config.outputFileName)
                  .toAbsolutePath()
-@@ -240,12 +244,34 @@ public final class NativeLibUtil {
+@@ -240,12 +249,34 @@ public final class NativeLibUtil {
              return detectWindowsConfig(modVersion, isX64);
          } else if (SystemUtils.IS_OS_LINUX) {
              return detectLinuxConfig(modVersion, isX64, isAArch64);
@@ -213,7 +227,7 @@ index 6a41957..1bb63e3 100644
      /**
       * 检测 Windows 平台配置
       */
-@@ -332,10 +358,16 @@ public final class NativeLibUtil {
+@@ -332,10 +363,16 @@ public final class NativeLibUtil {
              return preferredPath;
          } catch (Throwable t) {
              YesSteveModel.LOGGER.warn("Failed to create preferred directory, using fallback", t);
@@ -231,7 +245,7 @@ index 6a41957..1bb63e3 100644
          }
      }
  
-@@ -391,7 +423,7 @@ public final class NativeLibUtil {
+@@ -391,7 +428,7 @@ public final class NativeLibUtil {
          }
  
          try (InputStream stream = url.openStream()) {
