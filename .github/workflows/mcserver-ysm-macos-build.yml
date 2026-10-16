@@ -32,10 +32,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: development/ysm-macos/native/conan/cache
-          key: ysm-macos15-arm64-conan-abi2-e9ac162-v1-${{ github.run_id }}
+          key: ysm-macos15-arm64-conan-abi2-llvm22-ar-v2-${{ github.run_id }}
           restore-keys: |
-            ysm-macos15-arm64-conan-abi2-e9ac162-v1-
-            ysm-macos15-arm64-conan-abi2-e9ac162-v1
+            ysm-macos15-arm64-conan-abi2-llvm22-ar-v2-
       - name: Build and test the Apple Silicon native library
         run: bash development/ysm-macos/build-native.sh
       - name: Build and test the Java integration
@@ -51,7 +50,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: development/ysm-macos/native/conan/cache
-          key: ysm-macos15-arm64-conan-abi2-e9ac162-v1-${{ github.run_id }}
+          key: ysm-macos15-arm64-conan-abi2-llvm22-ar-v2-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
