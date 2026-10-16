@@ -24,7 +24,7 @@ if [[ ! -f "$runtime_prefix/lib/libc++_static.a" ]]; then
     llvm_version="$(llvm-config --version)"
     git clone --depth 1 --filter=blob:none --sparse --branch "llvmorg-$llvm_version" \
         https://github.com/llvm/llvm-project.git "$root/llvm-runtime-source"
-    git -C "$root/llvm-runtime-source" sparse-checkout set runtimes libcxx libcxxabi libunwind libc/shared cmake llvm/cmake llvm/include
+    git -C "$root/llvm-runtime-source" sparse-checkout set runtimes libcxx libcxxabi libunwind libc cmake llvm/cmake llvm/include
     cmake -G Ninja -S "$root/llvm-runtime-source/runtimes" -B "$root/runtime-build" \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$runtime_prefix" \
         -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
