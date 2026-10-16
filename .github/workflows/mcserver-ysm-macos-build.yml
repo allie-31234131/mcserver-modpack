@@ -22,11 +22,13 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Cache the private static C++ runtime
+        id: runtime-cache
         uses: actions/cache@v4
         with:
           path: development/ysm-macos/static-runtime
           key: ysm-macos15-arm64-libcxx22-abi2-v1
       - name: Cache source-built native dependencies
+        id: conan-cache
         uses: actions/cache@v4
         with:
           path: development/ysm-macos/native/conan/cache
@@ -35,6 +37,18 @@ jobs:
         run: bash development/ysm-macos/build-native.sh
       - name: Build and test the Java integration
         run: bash development/ysm-macos/build-java.sh
+      - name: Retain the complete static runtime after downstream failures
+        if: always() && steps.runtime-cache.outputs.cache-hit != 'true' && hashFiles('development/ysm-macos/static-runtime/lib/libc++_static.a') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: development/ysm-macos/static-runtime
+          key: ysm-macos15-arm64-libcxx22-abi2-v1
+      - name: Retain built dependency packages after downstream failures
+        if: always() && steps.conan-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: development/ysm-macos/native/conan/cache
+          key: ysm-macos15-arm64-conan-abi2-e9ac162-v1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
