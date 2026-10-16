@@ -62,7 +62,7 @@ tools.build:compiler_executables={"c":"$CC","cpp":"$CXX"}
 tools.build:cxxflags=["-nostdinc++","-isystem","$runtime_prefix/include/c++/v1","-D_LIBCPP_ABI_VERSION=2","-D_LIBCPP_DISABLE_AVAILABILITY"]
 tools.build:sharedlinkflags=["-nostdlib++","-L$runtime_prefix/lib","-lc++_static"]
 tools.build:exelinkflags=["-nostdlib++","-L$runtime_prefix/lib","-lc++_static"]
-tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5","CMAKE_OSX_ARCHITECTURES":"arm64","HAS_MACOS_STATIC_LIBCXX":true}
+tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5","CMAKE_OSX_ARCHITECTURES":"arm64","HAS_MACOS_STATIC_LIBCXX":True}
 EOF
 bash bootstrap.sh setup
 bash bootstrap.sh build native
