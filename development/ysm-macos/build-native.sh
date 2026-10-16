@@ -36,6 +36,7 @@ if [[ ! -f "$runtime_prefix/lib/libc++_static.a" ]]; then
         -DLIBCXXABI_USE_LLVM_UNWINDER=ON \
         -DLIBCXX_STATICALLY_LINK_ABI_IN_STATIC_LIBRARY=ON \
         -DLIBCXXABI_STATICALLY_LINK_UNWINDER_IN_STATIC_LIBRARY=ON \
+        -DLLVM_INCLUDE_TESTS=OFF -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
         -DLIBCXX_ENABLE_TESTS=OFF -DLIBCXXABI_ENABLE_TESTS=OFF -DLIBUNWIND_ENABLE_TESTS=OFF
     cmake --build "$root/runtime-build" --parallel 3
     cmake --install "$root/runtime-build"
@@ -43,7 +44,10 @@ if [[ ! -f "$runtime_prefix/lib/libc++_static.a" ]]; then
 fi
 
 if [[ ! -d "$root/native/.git" ]]; then
-    git clone --no-checkout --filter=blob:none https://github.com/YesSteveModel/YesSteveModel-Native.git "$root/native"
+    mkdir -p "$root/native"
+    git -C "$root/native" init
+    git -C "$root/native" remote add origin https://github.com/YesSteveModel/YesSteveModel-Native.git
+    git -C "$root/native" fetch --depth 1 origin e9ac162492a97c7222f652c41624ca150f450354
     git -C "$root/native" checkout --detach e9ac162492a97c7222f652c41624ca150f450354
 fi
 if [[ -s "$root/patches/native.patch" ]]; then

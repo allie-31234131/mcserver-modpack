@@ -1,3 +1,16 @@
+diff --git a/docs/architecture/native-runtime/README.md b/docs/architecture/native-runtime/README.md
+index 0bcbd35..500240d 100644
+--- a/docs/architecture/native-runtime/README.md
++++ b/docs/architecture/native-runtime/README.md
+@@ -36,6 +36,8 @@ flowchart LR
+ 
+ 加载窗口与 client/server 服务创建的关系见[运行模型](../runtime-model.md)。平台选择、CPU 最低要求与发布范围以[平台决策](../../product-decisions/requirements/req-platform-availability.md)和[当前状态](../../status/support-and-verification.md)为准；CMake 能构建的目标不能直接当作产品可用入口。
+ 
++社区 macOS ARM64 开发入口按 JVM 架构与系统版本选择内嵌 dylib，在用户 Library 的独立 native 目录提取。文件名包含完整 SHA-256，更新不会覆盖另一游戏进程正在使用的旧库；同目录临时文件通过原子替换发布，避免并发启动读取未写完的库。缓存无法提供原子替换时报告加载失败，不降级为可见的部分写入。库选择、JNI 初始化与游戏画面验收仍分别记录。
++
+ ## 能力分工
+ 
+ | Java 入口 / native 领域 | Native 交付 | 调用者仍负责 |
 diff --git a/docs/build.md b/docs/build.md
 index f964da3..a9a9ecc 100644
 --- a/docs/build.md
@@ -39,13 +52,20 @@ index 0c84e2d..e2e039c 100644
  zipStorePath=wrapper/dists
 diff --git a/src/main/java/com/elfmcys/ysm/util/MacNativePlatform.java b/src/main/java/com/elfmcys/ysm/util/MacNativePlatform.java
 new file mode 100644
-index 0000000..cfbefea
+index 0000000..1618444
 --- /dev/null
 +++ b/src/main/java/com/elfmcys/ysm/util/MacNativePlatform.java
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,72 @@
 +package com.elfmcys.ysm.util;
 +
 +import java.nio.file.Path;
++import java.nio.file.Files;
++import java.nio.file.StandardCopyOption;
++import java.nio.file.AtomicMoveNotSupportedException;
++import java.io.IOException;
++import java.security.MessageDigest;
++import java.security.NoSuchAlgorithmException;
++import java.util.HexFormat;
 +import java.util.Locale;
 +
 +/** macOS native prerequisites, independent of Minecraft initialization. */
@@ -78,9 +98,38 @@ index 0000000..cfbefea
 +    static String safeVersion(String version) {
 +        return version.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9._+-]", "_");
 +    }
++
++    /** Content-addressed names keep updates separate from dylibs mapped by another game process. */
++    static Path extractLibrary(Path directory, String version, byte[] data) throws IOException {
++        final String digest;
++        try {
++            digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data));
++        } catch (NoSuchAlgorithmException impossible) {
++            throw new AssertionError(impossible);
++        }
++        Files.createDirectories(directory);
++        Path target = directory.resolve("libysm-" + safeVersion(version) + "-" + digest + ".dylib");
++        if (Files.isRegularFile(target) && java.util.Arrays.equals(Files.readAllBytes(target), data)) {
++            return target;
++        }
++        Path temporary = Files.createTempFile(directory, ".ysm-", ".dylib");
++        try {
++            Files.write(temporary, data);
++            try {
++                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
++            } catch (AtomicMoveNotSupportedException unsupported) {
++                // Both paths are in the same directory. A filesystem without atomic rename cannot
++                // safely publish a library which another game process may immediately load.
++                throw new IOException("The YSM native cache must support atomic file replacement", unsupported);
++            }
++            return target;
++        } finally {
++            Files.deleteIfExists(temporary);
++        }
++    }
 +}
 diff --git a/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java b/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java
-index 6a41957..332e760 100644
+index 6a41957..fbf7d44 100644
 --- a/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java
 +++ b/src/main/java/com/elfmcys/ysm/util/NativeLibUtil.java
 @@ -41,6 +41,7 @@ public final class NativeLibUtil {
@@ -91,7 +140,18 @@ index 6a41957..332e760 100644
  
      /**
       * 在开发环境中运行时，Native 库的路径环境变量
-@@ -240,12 +241,29 @@ public final class NativeLibUtil {
+@@ -216,6 +217,10 @@ public final class NativeLibUtil {
+ 
+         // 准备提取目录
+         Path extractPath = prepareExtractPath(config.targetDir);
++        if (MACOS_LIB_NAME.equals(config.libFileName)) {
++            return MacNativePlatform.extractLibrary(extractPath, modVersion, libData)
++                    .toAbsolutePath().normalize().toString();
++        }
+         String libPath = extractPath
+                 .resolve(config.outputFileName)
+                 .toAbsolutePath()
+@@ -240,12 +245,34 @@ public final class NativeLibUtil {
              return detectWindowsConfig(modVersion, isX64);
          } else if (SystemUtils.IS_OS_LINUX) {
              return detectLinuxConfig(modVersion, isX64, isAArch64);
@@ -113,29 +173,68 @@ index 6a41957..332e760 100644
 +            setUnsupportedPlatformMsg("macOS 14.5 or later is required");
 +            return null;
 +        }
++        String home = System.getProperty("user.home");
++        if (home == null || home.isBlank()) {
++            setUnsatisfiedRuntimeEnvironmentMsg("The macOS user home directory is unavailable");
++            return null;
++        }
 +        return new PlatformConfig(MACOS_LIB_NAME,
 +                "libysm-" + MacNativePlatform.safeVersion(modVersion) + ".dylib",
-+                MacNativePlatform.libraryDirectory(System.getProperty("user.home")));
++                MacNativePlatform.libraryDirectory(home));
 +    }
 +
      /**
       * 检测 Windows 平台配置
       */
+@@ -332,10 +359,16 @@ public final class NativeLibUtil {
+             return preferredPath;
+         } catch (Throwable t) {
+             YesSteveModel.LOGGER.warn("Failed to create preferred directory, using fallback", t);
+-            return FMLPaths.GAMEDIR.get()
++            Path fallback = FMLPaths.GAMEDIR.get()
+                     .resolve(YesSteveModel.MOD_ID)
+                     .resolve("cache")
+                     .resolve("unstable");
++            try {
++                Files.createDirectories(fallback);
++            } catch (IOException failure) {
++                throw new java.io.UncheckedIOException("Unable to create the YSM native cache", failure);
++            }
++            return fallback;
+         }
+     }
+ 
+@@ -391,7 +424,7 @@ public final class NativeLibUtil {
+         }
+ 
+         try (InputStream stream = url.openStream()) {
+-            return IOUtils.readFully(stream, stream.available());
++            return stream.readAllBytes();
+         }
+     }
+ 
 diff --git a/src/test/java/com/elfmcys/ysm/util/MacNativePlatformTest.java b/src/test/java/com/elfmcys/ysm/util/MacNativePlatformTest.java
 new file mode 100644
-index 0000000..3e7ec08
+index 0000000..08b7f2d
 --- /dev/null
 +++ b/src/test/java/com/elfmcys/ysm/util/MacNativePlatformTest.java
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,79 @@
 +package com.elfmcys.ysm.util;
 +
 +import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.io.TempDir;
 +
 +import java.nio.file.Path;
++import java.nio.file.Files;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Callable;
++import java.util.List;
 +
 +import static org.junit.jupiter.api.Assertions.*;
 +
 +class MacNativePlatformTest {
++    @TempDir
++    Path temporary;
 +    @Test
 +    void acceptsBothJvmArm64NamesAndRejectsIntel() {
 +        assertTrue(MacNativePlatform.isArm64("aarch64"));
@@ -163,5 +262,39 @@ index 0000000..3e7ec08
 +                MacNativePlatform.libraryDirectory("/Users/Test User"));
 +        assertEquals("3.0-dev-forge+mc1.20.1_unsafe_name",
 +                MacNativePlatform.safeVersion("3.0-dev-forge+mc1.20.1/unsafe\\name"));
++    }
++
++    @Test
++    void changedLibrariesNeverOverwriteTheOldVersion() throws Exception {
++        byte[] oldBytes = {1, 2, 3}, newBytes = {4, 5, 6};
++        Path oldPath = MacNativePlatform.extractLibrary(temporary, "dev/snapshot", oldBytes);
++        Path newPath = MacNativePlatform.extractLibrary(temporary, "dev/snapshot", newBytes);
++        assertNotEquals(oldPath, newPath);
++        assertArrayEquals(oldBytes, Files.readAllBytes(oldPath));
++        assertArrayEquals(newBytes, Files.readAllBytes(newPath));
++    }
++
++    @Test
++    void concurrentExtractionPublishesOnlyCompleteBytesAndRepairsTruncation() throws Exception {
++        byte[] bytes = new byte[1024 * 128];
++        new java.util.Random(1234).nextBytes(bytes);
++        var executor = Executors.newFixedThreadPool(4);
++        try {
++            Callable<Path> extract = () -> MacNativePlatform.extractLibrary(temporary, "3.0-dev", bytes);
++            var results = executor.invokeAll(List.of(extract, extract, extract, extract));
++            Path path = results.get(0).get();
++            for (var result : results) {
++                assertEquals(path, result.get());
++                assertArrayEquals(bytes, Files.readAllBytes(result.get()));
++            }
++            Files.write(path, new byte[]{0});
++            assertEquals(path, extract.call());
++            assertArrayEquals(bytes, Files.readAllBytes(path));
++            try (var files = Files.list(temporary)) {
++                assertEquals(1, files.count());
++            }
++        } finally {
++            executor.shutdownNow();
++        }
 +    }
 +}
