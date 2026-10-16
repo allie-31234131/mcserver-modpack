@@ -1,0 +1,46 @@
+name: MCServer YSM macOS development
+on:
+  workflow_dispatch:
+  push:
+    branches: [ysm-macos-development]
+    paths: ['development/ysm-macos/**', '.github/workflows/mcserver-ysm-macos-build.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ysm-macos-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native-and-java:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Cache the private static C++ runtime
+        uses: actions/cache@v4
+        with:
+          path: development/ysm-macos/static-runtime
+          key: ysm-macos15-arm64-libcxx22-abi2-v1
+      - name: Cache source-built native dependencies
+        uses: actions/cache@v4
+        with:
+          path: development/ysm-macos/native/conan/cache
+          key: ysm-macos15-arm64-conan-abi2-e9ac162-v1
+      - name: Build and test the Apple Silicon native library
+        run: bash development/ysm-macos/build-native.sh
+      - name: Build and test the Java integration
+        run: bash development/ysm-macos/build-java.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: YSM-macOS-development-${{ github.run_number }}
+          path: |
+            development/ysm-macos/evidence/
+            development/ysm-macos/dist/
+          if-no-files-found: warn
+          retention-days: 7
