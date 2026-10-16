@@ -5,9 +5,9 @@ mkdir -p "$root/evidence" "$root/dist"
 exec > >(tee "$root/evidence/native-build.log") 2>&1
 test "$(uname -m)" = arm64
 export MACOSX_DEPLOYMENT_TARGET=14.5
-brew install llvm@22 cmake ninja nasm
+brew install llvm@22 lld@22 cmake ninja nasm
 llvm_prefix="$(brew --prefix llvm@22)"
-export PATH="$llvm_prefix/bin:$PATH"
+export PATH="$llvm_prefix/bin:$(brew --prefix lld@22)/bin:$PATH"
 export CC="$llvm_prefix/bin/clang" CXX="$llvm_prefix/bin/clang++"
 python3 -m venv "$root/build-venv"
 source "$root/build-venv/bin/activate"
@@ -62,7 +62,7 @@ tools.build:compiler_executables={"c":"$CC","cpp":"$CXX"}
 tools.build:cxxflags=["-nostdinc++","-isystem","$runtime_prefix/include/c++/v1","-D_LIBCPP_ABI_VERSION=2","-D_LIBCPP_DISABLE_AVAILABILITY"]
 tools.build:sharedlinkflags=["-nostdlib++","-L$runtime_prefix/lib","-lc++_static"]
 tools.build:exelinkflags=["-nostdlib++","-L$runtime_prefix/lib","-lc++_static"]
-tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5","CMAKE_OSX_ARCHITECTURES":"arm64","HAS_MACOS_STATIC_LIBCXX":True}
+tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5","CMAKE_OSX_ARCHITECTURES":"arm64","CMAKE_LINKER_TYPE":"LLD","HAS_MACOS_STATIC_LIBCXX":True}
 EOF
 bash bootstrap.sh setup
 bash bootstrap.sh build native
