@@ -1,8 +1,8 @@
 diff --git a/docs/build_cn.md b/docs/build_cn.md
-index 76ec547..c24b66f 100644
+index 76ec547..7f018ef 100644
 --- a/docs/build_cn.md
 +++ b/docs/build_cn.md
-@@ -59,6 +59,12 @@ Linux 示例:
+@@ -59,6 +59,14 @@ Linux 示例:
  
  # 官方构建环境
  
@@ -12,9 +12,85 @@ index 76ec547..c24b66f 100644
 +
 +第三方 jpeg-turbo 的 `WITH_TESTS=OFF` 同时排除独立 `simdcoverage` 工具。YSM 自身的 `ysm-test` 和 Java/JNI 测试仍须构建并运行，不以关闭测试作为产品验收。
 +
++社区测试保持 optional enum 的 presence 语义：field-seven 冻结 fixture 使用未设置的 loop，额外覆盖显式零值的 wire 与重开；生产 render 测试按实际 executor 的工作线程数选择调度预期，并保留全部顶点、光照和错误后恢复检查。固定 worker 数的策略分支仍由独立调度测试覆盖，不假定所有 macOS 主机都具有四个以上 worker。
++
  此为官方构建使用的完整工具链和环境，可基于此复现官方构建。
  
  <sub>*有点复杂，常规开发不推荐手动复现。*</sub>
+diff --git a/modules/test/src/legacy_animation_proto_test.cc b/modules/test/src/legacy_animation_proto_test.cc
+index 50938da..6f37bf3 100644
+--- a/modules/test/src/legacy_animation_proto_test.cc
++++ b/modules/test/src/legacy_animation_proto_test.cc
+@@ -33,7 +33,7 @@ constexpr std::string_view kFrozenFieldSevenWire =
+ TEST(LegacyAnimationProtoTest, MatchesFrozenFieldSevenWireAndOrder) {
+     animation_proto::Animation animation{};
+     animation.length = 0.0F;
+-    animation.loop = animation_proto::LoopType::LOOP_TYPE_UNSPECIFIED;
++    animation.loop = std::nullopt;
+     animation.sound_keyframes.emplace_back(
+         "\xE6\xA8\xA1\xE5\x9E\x8B\x3A\xE9\x93\x83", 0.0F);
+     animation.sound_keyframes.emplace_back("", 1.25F);
+@@ -56,6 +56,19 @@ TEST(LegacyAnimationProtoTest, MatchesFrozenFieldSevenWireAndOrder) {
+     EXPECT_TRUE(std::isnan(parsed.sound_keyframes[2].start_tick));
+ }
+ 
++TEST(LegacyAnimationProtoTest, PreservesExplicitZeroLoopPresence) {
++    animation_proto::Animation source{};
++    source.length = 0.0F;
++    source.loop = animation_proto::LoopType::LOOP_TYPE_UNSPECIFIED;
++    std::string encoded;
++    struct_pb::to_pb(source, encoded);
++    EXPECT_EQ(std::string("\x18\x00", 2), encoded);
++    animation_proto::Animation parsed{};
++    ASSERT_NO_THROW(parsed.from_pb(encoded));
++    ASSERT_TRUE(parsed.loop.has_value());
++    EXPECT_EQ(*parsed.loop, animation_proto::LoopType::LOOP_TYPE_UNSPECIFIED);
++}
++
+ TEST(LegacyAnimationProtoTest, ReadsPreFieldSevenPayloadAsAnEmptyList) {
+     animation_proto::Animation current{};
+     ASSERT_NO_THROW(current.from_pb(std::string("\x0A\x05sound", 7)));
+diff --git a/modules/test/src/model_state_test.cc b/modules/test/src/model_state_test.cc
+index 1ccf6e5..d4902ad 100644
+--- a/modules/test/src/model_state_test.cc
++++ b/modules/test/src/model_state_test.cc
+@@ -14,6 +14,7 @@
+ #include "gfx/bake/baked_model.h"
+ #include "gfx/renderer/model_state.h"
+ #include "gfx/renderer/render.h"
++#include "renderer/parallel_executor.h"
+ #include "renderer/vertex/iris_56.h"
+ #include "renderer/vertex/vanilla.h"
+ 
+@@ -445,7 +446,7 @@ TEST(ModelStateTest, SnapshotRendersRepeatedlyWithTrustedNormalizedNormal) {
+     EXPECT_EQ(shadow_vertices[0].tangent, 0U);
+ }
+ 
+-TEST(ModelStateTest, ProductionPolicyRendersPrewakeAndWorkerReadySchedules) {
++TEST(ModelStateTest, RendersHostSelectedProductionSchedules) {
+     InitCpuInfo();
+ #ifdef YSM_X64
+     simd::Mock(simd::Type::SSE41);
+@@ -505,12 +506,17 @@ TEST(ModelStateTest, ProductionPolicyRendersPrewakeAndWorkerReadySchedules) {
+ 
+     gfx::renderer::ModelState prewake_state;
+     std::vector<Byte> prewake_output;
+-    ASSERT_TRUE(run_case(9, gfx::renderer::RenderSchedulingMode::kSerialPrewake, 8,
++    const auto workers = gfx::renderer::ParallelExecutor::Get().GetThreadCount();
++    const auto small_mode = gfx::renderer::DetermineRenderSchedulingMode(workers, 9, 9);
++    ASSERT_TRUE(run_case(9, small_mode, 8,
+                          prewake_state, prewake_output));
+ 
+     gfx::renderer::ModelState worker_ready_state;
+     std::vector<Byte> worker_ready_output;
+-    ASSERT_TRUE(run_case(224, gfx::renderer::RenderSchedulingMode::kWorkerReadySpin,
++    const auto large_bone_count = workers * 32;
++    const auto large_mode = gfx::renderer::DetermineRenderSchedulingMode(
++        workers, large_bone_count, large_bone_count);
++    ASSERT_TRUE(run_case(large_bone_count, large_mode,
+                          32, worker_ready_state, worker_ready_output));
+ 
+     auto& last_pose = const_cast<gfx::renderer::BonePose&>(
 diff --git a/third-party/jpeg-turbo/conandata.yml b/third-party/jpeg-turbo/conandata.yml
 index 1867808..7e04f8d 100644
 --- a/third-party/jpeg-turbo/conandata.yml

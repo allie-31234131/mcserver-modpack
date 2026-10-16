@@ -67,9 +67,6 @@ tools.cmake.cmaketoolchain:extra_variables={"CMAKE_OSX_DEPLOYMENT_TARGET":"14.5"
 EOF
 bash bootstrap.sh setup
 bash bootstrap.sh build native
-cmake --build build/native-release --target ysm-test --parallel 3
-ctest --test-dir build/native-release --output-on-failure --timeout 90 \
-    --output-junit "$root/evidence/native-tests.xml"
 library="$root/native/build/native-release/modules/lib-jni/libysm.dylib"
 test -f "$library"
 cp "$library" "$root/dist/libysm.dylib"
@@ -77,12 +74,19 @@ codesign --force --sign - "$root/dist/libysm.dylib"
 codesign --verify --strict --verbose=2 "$root/dist/libysm.dylib"
 file "$root/dist/libysm.dylib" | tee "$root/evidence/architecture.txt"
 otool -L "$root/dist/libysm.dylib" | tee "$root/evidence/linkage.txt"
-if otool -L "$root/dist/libysm.dylib" | tail -n +2 | grep -Ev '^\s*(/usr/lib/|/System/Library/|$)'; then
-    echo 'Unexpected external runtime dependency' >&2
-    exit 1
-fi
+python - "$root/evidence/linkage.txt" <<'PY'
+from pathlib import Path
+import sys
+for line in Path(sys.argv[1]).read_text().splitlines()[1:]:
+    name = line.strip().split(' (compatibility version', 1)[0]
+    if name and name != '@rpath/libysm.dylib' and not name.startswith(('/usr/lib/', '/System/Library/')):
+        raise SystemExit('Unexpected external runtime dependency: ' + name)
+PY
 if otool -L "$root/dist/libysm.dylib" | grep -q 'libc++'; then
     echo 'Dynamic C++ runtime is forbidden by the distribution contract' >&2
     exit 1
 fi
 shasum -a 256 "$root/dist/libysm.dylib" > "$root/evidence/SHA256SUMS"
+cmake --build build/native-release --target ysm-test --parallel 3
+ctest --test-dir build/native-release --output-on-failure --timeout 90 \
+    --output-junit "$root/evidence/native-tests.xml"

@@ -9,3 +9,5 @@ The native baseline is YesSteveModel/YesSteveModel-Native `e9ac162492a97c7222f65
 Acceptance requires native build/tests, Java/JNI tests, NeoForge 1.21.1 integration, existing model compatibility, server/client synchronization, safe opt-out, actual Mac rendering, Iris/DH compatibility and sustained gameplay. Existing YSM 2.6.5 and development 3.0 formats/protocols are not assumed compatible.
 
 The mobile policy remains excluded. Server installation, restart and public modpack publication are deferred by the operator.
+
+`patches/neoforge.patch` is a separate source port for the current MCServer host. `resolve-neoforge-dependencies.py` downloads hash-pinned compile-only APIs; none are automatically installed into the game. `build-neoforge.sh` requires the freshly built native library and Java 21, then runs the full Java/JNI suite, focused portable checks, builtin verification and JAR packaging. Local compile and focused checks are intermediate observations; actual native/host/render acceptance remains required. The optional Windows CI job builds the matching server/client DLL without touching the operating server.

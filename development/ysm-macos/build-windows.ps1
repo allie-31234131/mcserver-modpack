@@ -37,8 +37,13 @@ try {
     $env:CONAN_HOME = "$root/native/conan/cache"
     $compiler = $env:CC.Replace('\','/')
     $archiver = "$llvm/llvm-lib.exe".Replace('\','/')
+    $profile = "$root/native/conan/profile-override"
+    $profileText = [System.IO.File]::ReadAllText($profile).Replace('compiler.cppstd=23', "compiler.cppstd=23`ncompiler.runtime_version=v145")
+    [System.IO.File]::WriteAllText($profile, $profileText, [System.Text.UTF8Encoding]::new($false))
     @"
 tools.build:jobs=3
+tools.microsoft.msbuild:vs_version=18
+tools.microsoft.msbuild:installation_path=$($env:VSINSTALLDIR.Replace('\','/'))
 tools.build:compiler_executables={"c":"$compiler","cpp":"$compiler"}
 tools.cmake.cmaketoolchain:extra_variables={"CMAKE_C_COMPILER":"$compiler","CMAKE_CXX_COMPILER":"$compiler","CMAKE_AR":"$archiver","CMAKE_LINKER_TYPE":"LLD"}
 "@ | Add-Content -LiteralPath "$root/native/conan/profile-override" -Encoding utf8

@@ -1,0 +1,74 @@
+[
+  {
+    "project": "curios",
+    "version": "9.5.1+1.21.1",
+    "file": "curios-neoforge-9.5.1+1.21.1.jar",
+    "url": "https://cdn.modrinth.com/data/vvuO3ImH/versions/yohfFbgD/curios-neoforge-9.5.1%2B1.21.1.jar",
+    "sha512": "5981a267686b744e7e3c227f78cbcd5267c14ac6979a28e814695f4589273998563147207fef4a5cdb7cdbdc39797cd95d9e4abadb55869f18e02a38d0654ae5"
+  },
+  {
+    "project": "simple-planes",
+    "version": "5.3.9",
+    "file": "simpleplanes-1.21.1-5.3.9.jar",
+    "url": "https://cdn.modrinth.com/data/74piZbBF/versions/tGW6Zlf9/simpleplanes-1.21.1-5.3.9.jar",
+    "sha512": "5b76f6a571efb051f02a9e7a738a1530e17222fd511e8961273bd815f07ee671d0303aa20587fdc3183df3b8e059cb6b8c127c8ce167d2b6917cbef8e0b4524c"
+  },
+  {
+    "project": "slashblade-resharped",
+    "version": "2.1.9-1.21.1",
+    "file": "SlashBladeResharped-2.1.9-1.21.1.jar",
+    "url": "https://cdn.modrinth.com/data/8T53F0sy/versions/SA6IKdsb/SlashBladeResharped-2.1.9-1.21.1.jar",
+    "sha512": "d909eff012d356942ead89cb7ac2a33a8fd593042048cb57b3cee117d63b4c6ead3e4dfa687f8395e1c8d542a39b33447b4c95c48ab2622d4728cb8f6b4d5e42"
+  },
+  {
+    "project": "touhou-little-maid",
+    "version": "1.5.3-neoforge+mc1.21.1",
+    "file": "touhoulittlemaid-1.5.3-neoforge+mc1.21.1.jar",
+    "url": "https://cdn.modrinth.com/data/R0bDWFAW/versions/tXG1TkGx/touhoulittlemaid-1.5.3-neoforge%2Bmc1.21.1.jar",
+    "sha512": "147bc10f5cc7159ee16c4918795155b3e52cf6bab5e09f588ed3fec14f8b47bbc512948bb8fef30346a47feba2692b6dbe20781c6cc1dc1d2c6b9377a9649bbe"
+  },
+  {
+    "project": "sophisticated-core",
+    "version": "1.21.1-1.5.13.2404",
+    "file": "sophisticatedcore-1.21.1-1.5.13.2404.jar",
+    "url": "https://cdn.modrinth.com/data/nmoqTijg/versions/DAcZAWzl/sophisticatedcore-1.21.1-1.5.13.2404.jar",
+    "sha512": "de9820a5e21cd6dcb68a0c967cbd0756dd12b00bfe6368249ff90becf0809a586080494b41ede72377693ada905d30a7f8ef3617b21394e9f3b841f48ab12785"
+  },
+  {
+    "project": "sophisticated-backpacks",
+    "version": "1.21.1-3.26.12.2208",
+    "file": "sophisticatedbackpacks-1.21.1-3.26.12.2208.jar",
+    "url": "https://cdn.modrinth.com/data/TyCTlI4b/versions/QkVLEgt1/sophisticatedbackpacks-1.21.1-3.26.12.2208.jar",
+    "sha512": "19b503080d0bd0e522e0934fda0b4922f2f0d5ad946103e5daf86be86e01e5e8ec6744f34e915b41fc4d1578fc6cacf004cca5d10ab8bdf76d2f26831e07bb65"
+  },
+  {
+    "file": "tacz-neoforge-1.21.1-1.1.8-hotfix-r7.jar",
+    "url": "https://cdn.modrinth.com/data/OypNE65K/versions/62q6mB5Q/tacz-neoforge-1.21.1-1.1.8-hotfix-r7.jar",
+    "sha512": "7700ed99a080729c3aa21f9619e018fbe9e2303cfbcaa463175ee5170553a000b692bc4cfa2e8ce0778747eed34dcc0197fb5e4344bb258cff1ba90adc842642",
+    "purpose": "compileOnly; not bundled"
+  },
+  {
+    "file": "create-1.21.1-6.0.10.jar",
+    "url": "https://cdn.modrinth.com/data/LNytGWDc/versions/UjX6dr61/create-1.21.1-6.0.10.jar",
+    "sha512": "11cc8fc049d2f67f6548c7abfada6b82a3adb5c7ca410a742de04bbca76e03862c518721b88d806f6e6d768a4d68531fdb903a85859b25d1484d550cc7bafd4b",
+    "purpose": "compileOnly; not bundled"
+  },
+  {
+    "file": "superbwarfare-0.8.9.2-mc1.21.1-c22d98c2.jar",
+    "url": "https://cdn.modrinth.com/data/Cd3DYqzn/versions/bl7W8fjU/superbwarfare-0.8.9.2-mc1.21.1-c22d98c2.jar",
+    "sha512": "fb035d68d6ee30c17e8eade8de6e2019ccf9f3e517fa467be59441a397553c81bd29778f92fa0406f1ac3aa73f68ad522aed5d65825336c36686714c900877a5",
+    "purpose": "compileOnly; not bundled"
+  },
+  {
+    "file": "iris-neoforge-1.8.14-beta.1+mc1.21.1.jar",
+    "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/KduFYu4t/iris-neoforge-1.8.14-beta.1%2Bmc1.21.1.jar",
+    "sha512": "33fddb430e16222902eac75b8b3d57c381b0f3cc729f3b56c4628df12ca108f23a0b11e2feb167923d6d14d1fc7e8ee1a977ec421b19d1951bdca74c4092b9c5",
+    "purpose": "compileOnly; not bundled"
+  },
+  {
+    "file": "Jade-1.21.1-NeoForge-15.10.6.jar",
+    "url": "https://cdn.modrinth.com/data/nvQzSEkH/versions/eYz2YBGT/Jade-1.21.1-NeoForge-15.10.6.jar",
+    "sha512": "dad9755dce8d85d914fc4df2baa0211f13e5839a71c1925fdd01f69081a95e30a2934e6273f8b01f0169adebe7a9dae57a8d904de0c4cb36dc17369bb474f0f2",
+    "purpose": "compileOnly; not bundled"
+  }
+]
