@@ -1,3 +1,20 @@
+diff --git a/docs/build_cn.md b/docs/build_cn.md
+index 76ec547..c24b66f 100644
+--- a/docs/build_cn.md
++++ b/docs/build_cn.md
+@@ -59,6 +59,12 @@ Linux 示例:
+ 
+ # 官方构建环境
+ 
++## 社区 macOS ARM64 构建
++
++社区构建使用 LLVM 22 和 LLD，以 macOS 14.5 为 deployment target，单独静态构建 libc++、libc++abi 和 libunwind，统一使用 libc++ ABI v2。最终 JNI 动态库只允许系统动态依赖；用户无需安装 Homebrew 或 C++ 运行库。系统版本、ARM64 JVM 和 JNI 加载由 Java 接入检查；编译目标不构成游戏画面或跨平台联机验收。
++
++第三方 jpeg-turbo 的 `WITH_TESTS=OFF` 同时排除独立 `simdcoverage` 工具。YSM 自身的 `ysm-test` 和 Java/JNI 测试仍须构建并运行，不以关闭测试作为产品验收。
++
+ 此为官方构建使用的完整工具链和环境，可基于此复现官方构建。
+ 
+ <sub>*有点复杂，常规开发不推荐手动复现。*</sub>
 diff --git a/third-party/jpeg-turbo/conandata.yml b/third-party/jpeg-turbo/conandata.yml
 index 1867808..7e04f8d 100644
 --- a/third-party/jpeg-turbo/conandata.yml
@@ -12,14 +29,14 @@ index 1867808..7e04f8d 100644
  build:
 diff --git a/third-party/jpeg-turbo/patches/jpeg-turbo-respect-disabled-tests.patch b/third-party/jpeg-turbo/patches/jpeg-turbo-respect-disabled-tests.patch
 new file mode 100644
-index 0000000..78225f4
+index 0000000..69e7798
 --- /dev/null
 +++ b/third-party/jpeg-turbo/patches/jpeg-turbo-respect-disabled-tests.patch
 @@ -0,0 +1,9 @@
 +diff --git a/simd/CMakeLists.txt b/simd/CMakeLists.txt
 +--- a/simd/CMakeLists.txt
 ++++ b/simd/CMakeLists.txt
-+@@ -1,4 +1,4 @@
++@@ -568,4 +568,4 @@
 +-if(WITH_SIMD AND ENABLE_STATIC)
 ++if(WITH_SIMD AND ENABLE_STATIC AND WITH_TESTS)
 +   add_executable(simdcoverage simdcoverage.c)
