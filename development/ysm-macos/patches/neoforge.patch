@@ -2773,7 +2773,7 @@ index 47bbad5..fd8b7d3 100644
          return Math.abs(limbSwingAmount) > MIN_SPEED;
      }
 diff --git a/src/main/java/com/elfmcys/ysm/client/animation/molang/YSMBinding.java b/src/main/java/com/elfmcys/ysm/client/animation/molang/YSMBinding.java
-index e13930a..d5fe968 100644
+index e13930a..0b39884 100644
 --- a/src/main/java/com/elfmcys/ysm/client/animation/molang/YSMBinding.java
 +++ b/src/main/java/com/elfmcys/ysm/client/animation/molang/YSMBinding.java
 @@ -49,10 +49,10 @@ import net.minecraft.world.level.levelgen.Heightmap;
@@ -2855,15 +2855,18 @@ index e13930a..d5fe968 100644
          if (key == null) {
              return StringUtils.EMPTY;
          }
-@@ -390,7 +390,7 @@ public class YSMBinding extends ContextBinding {
+@@ -390,9 +390,9 @@ public class YSMBinding extends ContextBinding {
              return null;
          }
  
 -        Collection<MobEffectInstance> effects;
 +        Iterable<MobEffectInstance> effects;
          if (context.entity() instanceof Arrow) {
-             effects = ((ArrowEntityAccessor) context.entity()).getEffects();
+-            effects = ((ArrowEntityAccessor) context.entity()).getEffects();
++            effects = ((ArrowEntityAccessor) context.entity()).ysm$getPotionContents().getAllEffects();
          } else if (context.entity() instanceof LivingEntity) {
+             effects = ((LivingEntity) context.entity()).getActiveEffects();
+         } else {
 @@ -400,8 +400,8 @@ public class YSMBinding extends ContextBinding {
          }
  
@@ -2988,7 +2991,7 @@ index 52e800f..53f96cb 100644
              return null;
          }
 diff --git a/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EffectLevel.java b/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EffectLevel.java
-index ced3047..974f1d4 100644
+index ced3047..2c159df 100644
 --- a/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EffectLevel.java
 +++ b/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EffectLevel.java
 @@ -11,7 +11,7 @@ import net.minecraft.world.entity.projectile.Arrow;
@@ -3000,7 +3003,7 @@ index ced3047..974f1d4 100644
  
  public class EffectLevel extends ContextFunction<Entity> {
      @Override
-@@ -28,13 +28,13 @@ public class EffectLevel extends ContextFunction<Entity> {
+@@ -28,20 +28,20 @@ public class EffectLevel extends ContextFunction<Entity> {
                  continue;
              }
  
@@ -3016,6 +3019,14 @@ index ced3047..974f1d4 100644
              } else if (context.entity().entity() instanceof LivingEntity) {
                  MobEffectInstance instance = ((LivingEntity) context.entity().entity()).getEffect(effect);
                  if (instance != null) {
+                     sum += instance.getAmplifier() + 1;
+                 }
+             } else if (context.entity().entity() instanceof Arrow) {
+-                for (MobEffectInstance instance : ((ArrowEntityAccessor) context.entity().entity()).getEffects()) {
++                for (MobEffectInstance instance : ((ArrowEntityAccessor) context.entity().entity()).ysm$getPotionContents().getAllEffects()) {
+                     if (instance.getEffect() == effect) {
+                         sum += instance.getAmplifier() + 1;
+                         break;
 diff --git a/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EquippedEnchantmentLevel.java b/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EquippedEnchantmentLevel.java
 index 3421e40..0908478 100644
 --- a/src/main/java/com/elfmcys/ysm/client/animation/molang/functions/EquippedEnchantmentLevel.java
@@ -5111,10 +5122,10 @@ index 8e18a6c..95a7cd4 100644
              }
  
 diff --git a/src/main/java/com/elfmcys/ysm/client/event/ReplacePlayerHandRenderEvent.java b/src/main/java/com/elfmcys/ysm/client/event/ReplacePlayerHandRenderEvent.java
-index ba699bd..7327f51 100644
+index ba699bd..c1e9447 100644
 --- a/src/main/java/com/elfmcys/ysm/client/event/ReplacePlayerHandRenderEvent.java
 +++ b/src/main/java/com/elfmcys/ysm/client/event/ReplacePlayerHandRenderEvent.java
-@@ -10,12 +10,12 @@ import net.minecraft.client.Minecraft;
+@@ -10,12 +10,9 @@ import net.minecraft.client.Minecraft;
  import net.minecraft.client.player.LocalPlayer;
  import net.minecraft.client.renderer.MultiBufferSource;
  import net.minecraft.world.entity.HumanoidArm;
@@ -5122,17 +5133,14 @@ index ba699bd..7327f51 100644
 -import net.minecraftforge.client.event.RenderArmEvent;
 -import net.minecraftforge.eventbus.api.SubscribeEvent;
 -import net.minecraftforge.fml.common.Mod;
-+import net.neoforged.api.distmarker.Dist;
 +import net.neoforged.neoforge.client.event.RenderArmEvent;
 +import net.neoforged.bus.api.SubscribeEvent;
-+import net.neoforged.fml.common.Mod;
  
 -@Mod.EventBusSubscriber(value = Dist.CLIENT)
-+@net.neoforged.fml.common.EventBusSubscriber(value = Dist.CLIENT)
  public class ReplacePlayerHandRenderEvent {
  //    TODO
  //    @SubscribeEvent
-@@ -45,7 +45,7 @@ public class ReplacePlayerHandRenderEvent {
+@@ -45,7 +42,7 @@ public class ReplacePlayerHandRenderEvent {
  //            }
  //            PoseStack poseStack = event.getPoseStack();
  //            MultiBufferSource multiBufferSource = event.getMultiBufferSource();
@@ -7841,13 +7849,14 @@ index 90e1e51..ae83f7b 100644
                  shootItemId = key.toString();
              }
 diff --git a/src/main/java/com/elfmcys/ysm/mixin/client/ArrowEntityAccessor.java b/src/main/java/com/elfmcys/ysm/mixin/client/ArrowEntityAccessor.java
-index 7131e3d..45e373c 100644
+index 7131e3d..0b2716c 100644
 --- a/src/main/java/com/elfmcys/ysm/mixin/client/ArrowEntityAccessor.java
 +++ b/src/main/java/com/elfmcys/ysm/mixin/client/ArrowEntityAccessor.java
-@@ -2,13 +2,16 @@ package com.elfmcys.ysm.mixin.client;
+@@ -1,14 +1,12 @@
+ package com.elfmcys.ysm.mixin.client;
  
  import net.minecraft.world.entity.projectile.Arrow;
- import net.minecraft.world.effect.MobEffectInstance;
+-import net.minecraft.world.effect.MobEffectInstance;
 +import net.minecraft.world.item.alchemy.PotionContents;
  import org.spongepowered.asm.mixin.Mixin;
 -import org.spongepowered.asm.mixin.gen.Accessor;
@@ -7861,10 +7870,6 @@ index 7131e3d..45e373c 100644
 -    Set<MobEffectInstance> getEffects();
 +    @Invoker("getPotionContents")
 +    PotionContents ysm$getPotionContents();
-+
-+    default Iterable<MobEffectInstance> getEffects() {
-+        return ysm$getPotionContents().getAllEffects();
-+    }
  }
 diff --git a/src/main/java/com/elfmcys/ysm/mixin/client/BufferBuilderMixin.java b/src/main/java/com/elfmcys/ysm/mixin/client/BufferBuilderMixin.java
 index 9582497..3f02059 100644
