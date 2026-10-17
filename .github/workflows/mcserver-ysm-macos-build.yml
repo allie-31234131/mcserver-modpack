@@ -1,25 +1,55 @@
-name: MCServer YSM macOS development
+name: MCServer YSM macOS and Windows development
 on:
   workflow_dispatch:
-    inputs:
-      platform:
-        description: Native platform to build
-        type: choice
-        options: [macos, windows]
-        default: macos
   push:
     branches: [ysm-macos-development]
-    paths: ['development/ysm-macos/build-native.sh', 'development/ysm-macos/build-java.sh', 'development/ysm-macos/build-neoforge.sh', 'development/ysm-macos/patches/**', '.github/workflows/mcserver-ysm-macos-build.yml']
+    paths: ['development/ysm-macos/**', '.github/workflows/mcserver-ysm-macos-build.yml']
 permissions:
   contents: read
 concurrency:
-  group: ysm-native-${{ github.ref }}-${{ inputs.platform || 'macos' }}
+  group: ysm-cross-platform-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  native-and-java:
-    if: inputs.platform != 'windows'
-    runs-on: macos-15
+  windows-native:
+    runs-on: windows-2025
     timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: actions/cache@v4
+        id: windows-cache
+        with:
+          path: development/ysm-macos/native/conan/cache
+          key: ysm-windows2025-clang22-e9ac162-v1-${{ github.run_id }}
+          restore-keys: ysm-windows2025-clang22-e9ac162-v1-
+      - name: Build and test Windows x64 native library
+        shell: pwsh
+        run: '& ./development/ysm-macos/build-windows.ps1'
+      - uses: actions/cache/save@v4
+        if: always() && steps.windows-cache.outputs.cache-hit != 'true'
+        with:
+          path: development/ysm-macos/native/conan/cache
+          key: ysm-windows2025-clang22-e9ac162-v1-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: YSM-Windows-native-${{ github.run_id }}
+          path: development/ysm-macos/dist/ysm.dll
+          if-no-files-found: error
+          retention-days: 7
+
+  macos-native-and-neoforge:
+    needs: windows-native
+    runs-on: macos-15
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,17 +70,20 @@ jobs:
         with:
           path: development/ysm-macos/native/conan/cache
           key: ysm-macos15-arm64-conan-abi2-llvm22-ar-v2-${{ github.run_id }}
-          restore-keys: |
-            ysm-macos15-arm64-conan-abi2-llvm22-ar-v2-
-      - name: Build and test the Apple Silicon native library
+          restore-keys: ysm-macos15-arm64-conan-abi2-llvm22-ar-v2-
+      - name: Build and test Apple Silicon native library
         run: bash development/ysm-macos/build-native.sh
-      - name: Build and test the Java integration
-        run: bash development/ysm-macos/build-java.sh
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
-      - name: Build and test the NeoForge 1.21.1 port
+      - uses: actions/download-artifact@v4
+        with:
+          name: YSM-Windows-native-${{ github.run_id }}
+          path: development/ysm-macos/windows-artifact
+      - name: Build and test the NeoForge 1.21.1 universal mod
+        env:
+          YSM_WINDOWS_NATIVE_PATH: ${{ github.workspace }}/development/ysm-macos/windows-artifact/ysm.dll
         run: bash development/ysm-macos/build-neoforge.sh
       - name: Retain the complete static runtime after downstream failures
         if: always() && steps.runtime-cache.outputs.cache-hit != 'true' && hashFiles('development/ysm-macos/static-runtime/lib/libc++_static.a') != ''
@@ -68,44 +101,6 @@ jobs:
         if: always()
         with:
           name: YSM-macOS-development-${{ github.run_number }}
-          path: |
-            development/ysm-macos/evidence/
-            development/ysm-macos/dist/
-          if-no-files-found: warn
-          retention-days: 7
-  windows-native:
-    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'windows'
-    runs-on: windows-2025
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-      - uses: actions/cache@v4
-        id: windows-cache
-        with:
-          path: development/ysm-macos/native/conan/cache
-          key: ysm-windows2025-clang22-e9ac162-v1-${{ github.run_id }}
-          restore-keys: ysm-windows2025-clang22-e9ac162-v1-
-      - name: Build and test Windows server and client native code
-        shell: pwsh
-        run: '& ./development/ysm-macos/build-windows.ps1'
-      - uses: actions/cache/save@v4
-        if: always() && steps.windows-cache.outputs.cache-hit != 'true'
-        with:
-          path: development/ysm-macos/native/conan/cache
-          key: ysm-windows2025-clang22-e9ac162-v1-${{ github.run_id }}
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: YSM-Windows-development-${{ github.run_number }}
           path: |
             development/ysm-macos/evidence/
             development/ysm-macos/dist/
