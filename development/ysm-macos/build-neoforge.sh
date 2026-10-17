@@ -3,6 +3,14 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$root/evidence" "$root/dist"
 exec > >(tee "$root/evidence/neoforge-build.log") 2>&1
+preserve_test_results() {
+    if [[ -d "$root/neoforge/build/test-results" ]]; then
+        mkdir -p "$root/evidence/neoforge-tests"
+        cp -R "$root/neoforge/build/test-results/." "$root/evidence/neoforge-tests/" \
+            || echo 'Could not preserve the Gradle test reports'
+    fi
+}
+trap preserve_test_results EXIT
 git clone --no-checkout https://github.com/YesSteveModel/YesSteveModel.git "$root/neoforge"
 git -C "$root/neoforge" checkout --detach 74c53b58b2f9b680a6c6dc5d5d41e7422fc000bb
 git -C "$root/neoforge" apply --check "$root/patches/neoforge.patch"
@@ -36,8 +44,6 @@ fi
 export YSM_NATIVE_PATH="$mac_native"
 cd "$root/neoforge"
 bash ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx1800m' test portableTest check shadowJar
-mkdir -p "$root/evidence/neoforge-tests"
-cp -R build/test-results/. "$root/evidence/neoforge-tests/"
 jar_file="$(find build/libs -maxdepth 1 -type f -name '*all.jar' -print -quit)"
 test -n "$jar_file"
 cp "$jar_file" "$root/dist/"

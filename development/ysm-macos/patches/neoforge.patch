@@ -22,7 +22,7 @@ index db2296f..2f45444 100644
 +
  本清单是合规辅助材料，不替代各上游许可证正文。
 diff --git a/build.gradle b/build.gradle
-index 716c905..d8cd253 100644
+index 716c905..5c13825 100644
 --- a/build.gradle
 +++ b/build.gradle
 @@ -12,231 +12,85 @@ buildscript {
@@ -303,7 +303,7 @@ index 716c905..d8cd253 100644
      annotationProcessor 'io.github.llamalad7:mixinextras-common:0.3.6'
  
      compileOnly 'org.jetbrains:annotations:26.0.2'
-@@ -251,681 +105,152 @@ dependencies {
+@@ -251,681 +105,155 @@ dependencies {
      testImplementation 'com.google.protobuf:protobuf-java:3.21.12'
      testImplementation files(relocateProcessorAsmTask.flatMap { it.archiveFile })
      testImplementation 'com.google.code.gson:gson:2.10.1'
@@ -815,8 +815,13 @@ index 716c905..d8cd253 100644
 -                 sourceSets.mockServer.output.classesDirs.singleFile.absolutePath,
 -                 ysmNativeLibraryPath.get(),
 -                 'exact-100'])
--    }
--}
++    maxHeapSize = '768m'
++    testLogging {
++        events 'started', 'failed', 'skipped'
+     }
++    environment 'YSM_AUDIO_FIXTURE_DIR',
++            layout.projectDirectory.dir('src/test/resources/audio-fixtures').asFile.absolutePath
+ }
 -
 -tasks.register('modelManagementMockForge', JavaExec) {
 -    description = 'Runs the thin isolated Forge host-adapter conformance scenario.'
@@ -885,10 +890,6 @@ index 716c905..d8cd253 100644
 -        if (!taskRoot.isAbsolute() || !new File(taskRoot, 'contract/acceptance.md').isFile()) {
 -            throw new GradleException(
 -                    "Invalid modelManagementMockTaskRoot: ${taskRoot}")
-+    maxHeapSize = '768m'
-+    environment 'YSM_AUDIO_FIXTURE_DIR',
-+            layout.projectDirectory.dir('src/test/resources/audio-fixtures').asFile.absolutePath
-+}
 +tasks.matching { it.name == 'writeNeoForgeTestClasspath' }.configureEach {
 +    // FastUtil also sits on Gradle's app classpath through the NeoForge test runtime.
 +    // Leaving it in the JUnit legacy classpath creates two class identities across
@@ -10145,6 +10146,43 @@ index cbe058f..7082f0d 100644
      private static ModelInfoView view(Info info,
                                        RenderTarget player) {
          return new ModelInfoView(info, player, new AssetFileView(null));
+diff --git a/src/test/java/com/elfmcys/ysm/model/catalog/source/ModelDirectoryWatcherTest.java b/src/test/java/com/elfmcys/ysm/model/catalog/source/ModelDirectoryWatcherTest.java
+index 79182cf..c88bec6 100644
+--- a/src/test/java/com/elfmcys/ysm/model/catalog/source/ModelDirectoryWatcherTest.java
++++ b/src/test/java/com/elfmcys/ysm/model/catalog/source/ModelDirectoryWatcherTest.java
+@@ -29,9 +29,29 @@ class ModelDirectoryWatcherTest {
+             var model = root.resolve("model.mxc").toAbsolutePath().normalize();
+             Files.writeString(model, "changed");
+ 
+-            var event = events.poll(5, TimeUnit.SECONDS);
+-            assertNotNull(event);
+-            assertTrue(event.overflow() || event.paths().contains(model));
++            var expected = model.toRealPath();
++            var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
++            SourceChangeSet event;
++            while ((event = events.poll(100, TimeUnit.MILLISECONDS)) != null
++                    || System.nanoTime() < deadline) {
++                if (event != null && (event.overflow() || event.paths().stream()
++                        .anyMatch(path -> sameFile(path, expected)))) {
++                    return;
++                }
++                if (System.nanoTime() >= deadline) break;
++            }
++            assertNotNull(event, "No matching filesystem event was emitted");
++            assertTrue(event.overflow() || event.paths().stream()
++                    .anyMatch(path -> sameFile(path, expected)),
++                    "Unexpected filesystem event paths: " + event.paths());
++        }
++    }
++
++    private static boolean sameFile(Path left, Path right) {
++        try {
++            return Files.exists(left) && Files.isSameFile(left, right);
++        } catch (Exception ignored) {
++            return left.toAbsolutePath().normalize().equals(right.toAbsolutePath().normalize());
+         }
+     }
+ 
 diff --git a/src/test/java/com/elfmcys/ysm/model/resource/client/ModelRenderTargetTextureBindingTest.java b/src/test/java/com/elfmcys/ysm/model/resource/client/ModelRenderTargetTextureBindingTest.java
 index c379dd9..8a4a903 100644
 --- a/src/test/java/com/elfmcys/ysm/model/resource/client/ModelRenderTargetTextureBindingTest.java
@@ -10184,6 +10222,21 @@ index 20c1cda..d44bc91 100644
      }
  
      private static void await(CountDownLatch latch) throws Exception {
+diff --git a/src/test/java/com/elfmcys/ysm/model/storage/ModelExporterTest.java b/src/test/java/com/elfmcys/ysm/model/storage/ModelExporterTest.java
+index b73bb16..1f2e43a 100644
+--- a/src/test/java/com/elfmcys/ysm/model/storage/ModelExporterTest.java
++++ b/src/test/java/com/elfmcys/ysm/model/storage/ModelExporterTest.java
+@@ -90,8 +90,9 @@ class ModelExporterTest {
+         var inventory = assertInstanceOf(RootInventoryState.Complete.class,
+                 ModelSourceDiscovery.inventory(new ModelCatalogSource(
+                         CatalogRootKind.CUSTOM, temp, false)));
++        var exportedPath = output.toRealPath();
+         var observation = inventory.sources().values().stream()
+-                .filter(value -> value.absolutePath().equals(output.toAbsolutePath().normalize()))
++                .filter(value -> value.absolutePath().equals(exportedPath))
+                 .findFirst().orElseThrow();
+ 
+         assertEquals(ModelSourceKind.DIRECT_CONTAINER,
 diff --git a/src/test/java/com/elfmcys/ysm/natives/legacy/LegacyModelImporterCorpusTest.java b/src/test/java/com/elfmcys/ysm/natives/legacy/LegacyModelImporterCorpusTest.java
 index 64bb45f..56423b5 100644
 --- a/src/test/java/com/elfmcys/ysm/natives/legacy/LegacyModelImporterCorpusTest.java
