@@ -3749,6 +3749,46 @@ index 134150c..4619f81 100644
          if (comboSeq == null) {
              return StringUtils.EMPTY;
          }
+diff --git a/src/main/java/com/elfmcys/ysm/client/compat/slashblade/SlashBladeUnsafe.java b/src/main/java/com/elfmcys/ysm/client/compat/slashblade/SlashBladeUnsafe.java
+deleted file mode 100644
+index 99e9bd0..0000000
+--- a/src/main/java/com/elfmcys/ysm/client/compat/slashblade/SlashBladeUnsafe.java
++++ /dev/null
+@@ -1,34 +0,0 @@
+-package com.elfmcys.ysm.client.compat.slashblade;
+-
+-import com.elfmcys.ysm.util.UnsafeUtil;
+-import mods.flammpfeil.slashblade.capability.slashblade.ComboState;
+-import mods.flammpfeil.slashblade.capability.slashblade.SlashBladeState;
+-import org.apache.commons.lang3.StringUtils;
+-
+-public class SlashBladeUnsafe {
+-    private static long FIELD_OFFSET = -1;
+-
+-    static void initFiledOffset() {
+-        try {
+-            FIELD_OFFSET = UnsafeUtil.getUnsafe().objectFieldOffset(SlashBladeState.class.getDeclaredField("comboSeq"));
+-        } catch (NoSuchFieldException e) {
+-            e.fillInStackTrace();
+-        }
+-    }
+-
+-    static String getOldComboStateName(SlashBladeState state, long time) {
+-        Object object = UnsafeUtil.getUnsafe().getObject(state, FIELD_OFFSET);
+-        if (object instanceof ComboState comboState) {
+-            int timeout = comboState.getTimeoutMS();
+-            if (time > timeout) {
+-                return StringUtils.EMPTY;
+-            }
+-            String name = comboState.getName();
+-            if (name.startsWith("ex_")) {
+-                name = name.substring(3);
+-            }
+-            return "slashblade:" + name;
+-        }
+-        return StringUtils.EMPTY;
+-    }
+-}
 diff --git a/src/main/java/com/elfmcys/ysm/client/compat/swarfare/ReplacePlayerArmRender.java b/src/main/java/com/elfmcys/ysm/client/compat/swarfare/ReplacePlayerArmRender.java
 index 94e1dad..7108808 100644
 --- a/src/main/java/com/elfmcys/ysm/client/compat/swarfare/ReplacePlayerArmRender.java
@@ -7906,6 +7946,54 @@ index 2ae9da8..befdb9a 100644
          if (YesSteveModel.isAvailable()) {
              AnimationParallelTicker.waitAll();
              RenderUtil.setRenderingLevel(false);
+diff --git a/src/main/java/com/elfmcys/ysm/mixin/client/embeddium/SodiumBufferBuilderMixin.java b/src/main/java/com/elfmcys/ysm/mixin/client/embeddium/SodiumBufferBuilderMixin.java
+deleted file mode 100644
+index 80a5b3f..0000000
+--- a/src/main/java/com/elfmcys/ysm/mixin/client/embeddium/SodiumBufferBuilderMixin.java
++++ /dev/null
+@@ -1,42 +0,0 @@
+-package com.elfmcys.ysm.mixin.client.embeddium;
+-
+-import com.elfmcys.ysm.accessor.VertexBufferAccessor;
+-import com.elfmcys.ysm.buffer.NativeBuffer;
+-import com.mojang.blaze3d.vertex.VertexFormat;
+-import me.jellysquid.mods.sodium.client.render.vertex.buffer.ExtendedBufferBuilder;
+-import me.jellysquid.mods.sodium.client.render.vertex.buffer.SodiumBufferBuilder;
+-import org.spongepowered.asm.mixin.Final;
+-import org.spongepowered.asm.mixin.Mixin;
+-import org.spongepowered.asm.mixin.Shadow;
+-import org.spongepowered.asm.mixin.Unique;
+-
+-@Mixin(value = SodiumBufferBuilder.class, remap = false)
+-public class SodiumBufferBuilderMixin implements VertexBufferAccessor {
+-    @Shadow
+-    @Final
+-    private ExtendedBufferBuilder builder;
+-
+-    @Unique
+-    @Override
+-    public boolean ysm$ok() {
+-        return builder instanceof VertexBufferAccessor;
+-    }
+-
+-    @Unique
+-    @Override
+-    public VertexFormat ysm$vertexFormat() {
+-        return ((VertexBufferAccessor) builder).ysm$vertexFormat();
+-    }
+-
+-    @Unique
+-    @Override
+-    public NativeBuffer ysm$reserve(int vertexCount) {
+-        return ((VertexBufferAccessor) builder).ysm$reserve(vertexCount);
+-    }
+-
+-    @Unique
+-    @Override
+-    public void ysm$advance(int vertexCount) {
+-        ((VertexBufferAccessor) builder).ysm$advance(vertexCount);
+-    }
+-}
 diff --git a/src/main/java/com/elfmcys/ysm/mixin/plugin/MixinTweaker.java b/src/main/java/com/elfmcys/ysm/mixin/plugin/MixinTweaker.java
 index 62f48f6..ca0d390 100644
 --- a/src/main/java/com/elfmcys/ysm/mixin/plugin/MixinTweaker.java
@@ -9578,51 +9666,55 @@ index c59f0fd..e160d10 100644
 +    }
 +
  }
-diff --git a/src/main/resources/META-INF/neoforge.mods.toml b/src/main/resources/META-INF/neoforge.mods.toml
-new file mode 100644
-index 0000000..80ff19a
---- /dev/null
+diff --git a/src/main/resources/META-INF/mods.toml b/src/main/resources/META-INF/neoforge.mods.toml
+similarity index 79%
+rename from src/main/resources/META-INF/mods.toml
+rename to src/main/resources/META-INF/neoforge.mods.toml
+index ab3407e..80ff19a 100644
+--- a/src/main/resources/META-INF/mods.toml
 +++ b/src/main/resources/META-INF/neoforge.mods.toml
-@@ -0,0 +1,39 @@
-+modLoader="javafml"
+@@ -1,8 +1,11 @@
+ modLoader="javafml"
+-loaderVersion="[46,)"
 +loaderVersion="[4,)"
-+license="Apache-2.0"
-+issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
-+
+ license="Apache-2.0"
+ issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
+ 
 +[[mixins]]
 +    config="ysm.mixins.json"
 +
-+[[mods]]
-+    modId="ysm"
-+    version="${mod_version}"
-+    displayName="Yes Steve Model"
-+    displayURL="https://ysm.cfpa.team/"
-+    # updateJSONURL="https://change.me.example.invalid/updates.json"
-+    logoFile="ysm.png"
-+    credits="bernie-g (GeckoLib), fadookie (mclib), TT432 & SQwatermark (helped me solve many difficult problems)"
-+    authors="YS Group, TartaricAcid, TomatoPuddin, AryochiL"
-+    description="A mod based on GeckoLib that modifies the player model"
-+
-+[[dependencies.ysm]]
+ [[mods]]
+     modId="ysm"
+     version="${mod_version}"
+@@ -15,22 +18,22 @@ issueTrackerURL="https://github.com/YesSteveModel/YSM-Wiki-Issues/issues"
+     description="A mod based on GeckoLib that modifies the player model"
+ 
+ [[dependencies.ysm]]
+-    modId="forge"
+-    mandatory=true
+-    versionRange="[46,)"
 +    modId="neoforge"
 +    type="required"
 +    versionRange="[21.1.256,)"
-+    ordering="NONE"
-+    side="BOTH"
-+
-+[[dependencies.ysm]]
-+    modId="minecraft"
+     ordering="NONE"
+     side="BOTH"
+ 
+ [[dependencies.ysm]]
+     modId="minecraft"
+-    mandatory=true
+-    versionRange="[1.20,1.20.2)"
 +    type="required"
 +    versionRange="[1.21.1,1.21.2)"
-+    ordering="NONE"
-+    side="BOTH"
-+
-+[[dependencies.ysm]]
-+    modId="tacz"
+     ordering="NONE"
+     side="BOTH"
+ 
+ [[dependencies.ysm]]
+     modId="tacz"
+-    mandatory=false
 +    type="optional"
-+    versionRange="[1.0.2,)"
-+    ordering="NONE"
-+    side="BOTH"
+     versionRange="[1.0.2,)"
+     ordering="NONE"
+     side="BOTH"
 diff --git a/src/main/resources/licenses/jni b/src/main/resources/licenses/jni
 new file mode 100644
 index 0000000..8b400c7
