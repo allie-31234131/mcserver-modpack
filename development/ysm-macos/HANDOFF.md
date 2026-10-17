@@ -1,6 +1,6 @@
 # YSM macOS / NeoForge development handoff
 
-Checked: 2026-10-17 10:37 KST  
+Checked: 2026-10-17 11:04 KST  
 Status: development JAR built; not accepted for public or production use.
 
 ## Target
@@ -23,7 +23,7 @@ Status: development JAR built; not accepted for public or production use.
 - PASS: focused native runtime integration and audio regression suite (31 tests), including malformed Ogg content now failing through the content-error boundary rather than an uncaught decoder NPE.
 - PARTIAL: full Windows-hosted `test` executed 600 test cases: 587 passed, 4 failed, 9 skipped. All four failures are security regression tests that require creating symbolic links; this Windows account lacks the required privilege. No test was disabled or weakened. The same checks must pass on the macOS CI runner before acceptance.
 - PARTIAL: legacy model corpus: 901 of 906 source files imported; 3 Opus files are malformed and 2 models lack required player textures. These are rejected inputs, not accepted model fixtures.
-- PASS (earlier CI baseline): Apple Silicon native build/tests and Windows native build/tests completed in prior workflow runs. The latest cross-platform workflow update still needs to run against this exact source revision.
+- PASS: the current CI run rebuilt and tested both Windows x64 and Apple Silicon ARM64 native libraries. The NeoForge integration job then stopped before Java tests at `generateProto`: Gradle selected the NeoForge Maven mirror for `protoc-3.21.12-osx-aarch_64.exe`, but that mirror returns 404 while Maven Central serves it. Build configuration now routes `com.google.protobuf` exclusively to Maven Central; the updated source still needs a fresh CI run.
 - NOT TESTED: opening Minecraft on a physical Apple Silicon Mac; Microsoft account/launcher flow; model selection and display in a real world; Iris/Distant Horizons; live server join/synchronization; sustained gameplay. Compilation and automated tests do not establish those outcomes.
 
 ## Required next checks

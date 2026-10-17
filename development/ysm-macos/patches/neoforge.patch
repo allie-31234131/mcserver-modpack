@@ -22,10 +22,10 @@ index db2296f..2f45444 100644
 +
  本清单是合规辅助材料，不替代各上游许可证正文。
 diff --git a/build.gradle b/build.gradle
-index 716c905..7fc5bba 100644
+index 716c905..d8cd253 100644
 --- a/build.gradle
 +++ b/build.gradle
-@@ -12,231 +12,74 @@ buildscript {
+@@ -12,231 +12,85 @@ buildscript {
  plugins {
      id 'java-library'
      id 'idea'
@@ -118,7 +118,10 @@ index 716c905..7fc5bba 100644
 -        }
 -
 -        client {
--            client()
++        client { client() }
++        server { server(); programArgument '--nogui' }
++        packagedClient {
+             client()
 -            gameDirectory = project.file('run/client_a')
 -            loadedMods = [mods.ysm]
 -        }
@@ -147,10 +150,7 @@ index 716c905..7fc5bba 100644
 -        }
 -
 -        mockHostClientB {
-+        client { client() }
-+        server { server(); programArgument '--nogui' }
-+        packagedClient {
-             client()
+-            client()
 -            sourceSet = sourceSets.mockHost
 -            gameDirectory = layout.buildDirectory.dir('model-management-mock/unused/client-b')
 -            programArguments = ["--username", "YsmHostB",
@@ -218,7 +218,7 @@ index 716c905..7fc5bba 100644
  }
 -
  repositories {
-     mavenCentral()
+-    mavenCentral()
 -    flatDir {
 -        dir 'libs'
 -    }
@@ -227,7 +227,13 @@ index 716c905..7fc5bba 100644
 -        url = "https://www.cursemaven.com"
 -        content {
 -            includeGroup "curse.maven"
--        }
++    exclusiveContent {
++        forRepository {
++            maven {
++                name = 'protobufMavenCentral'
++                url = 'https://repo.maven.apache.org/maven2'
++            }
+         }
 -    }
 -    maven {
 -        name = "Modrinth"
@@ -252,8 +258,11 @@ index 716c905..7fc5bba 100644
 -        repo.content {
 -            excludeGroup 'com.google.protobuf'
 -            excludeGroup 'us.hebi.quickbuf'
--        }
--    }
++        filter {
++            includeGroup 'com.google.protobuf'
+         }
+     }
++    mavenCentral()
 +    flatDir { dir 'libs' }
 +    maven { url 'https://www.cursemaven.com'; content { includeGroup 'curse.maven' } }
 +    maven { url 'https://api.modrinth.com/maven'; content { includeGroup 'maven.modrinth' } }
@@ -294,12 +303,13 @@ index 716c905..7fc5bba 100644
      annotationProcessor 'io.github.llamalad7:mixinextras-common:0.3.6'
  
      compileOnly 'org.jetbrains:annotations:26.0.2'
-@@ -251,681 +94,152 @@ dependencies {
+@@ -251,681 +105,152 @@ dependencies {
      testImplementation 'com.google.protobuf:protobuf-java:3.21.12'
      testImplementation files(relocateProcessorAsmTask.flatMap { it.archiveFile })
      testImplementation 'com.google.code.gson:gson:2.10.1'
 +    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 +    testImplementation 'org.apache.logging.log4j:log4j-core:2.22.1'
++
 +
  
 -    mockSupportImplementation 'com.google.code.gson:gson:2.10.1'
@@ -317,7 +327,6 @@ index 716c905..7fc5bba 100644
 -    modCompileOnly 'libs:oculus_legacy:mc1.20.1-1.6.13'
 -    modCompileOnly 'libs:oculus:mc1.20.1-1.7.0'
 -    collabClientImplementation "curse.maven:embeddium-908741:${embeddium_id}"
-+
 +    compileOnly 'libs:firstperson-forge:2.2.3-mc1.20'
 +    compileOnly 'libs:notenoughanimations-forge:1.6.4-mc1.20'
  
@@ -939,8 +948,10 @@ index 716c905..7fc5bba 100644
 -                 layout.buildDirectory.dir('test-results/modelManagementMockSupervisorTest')
 -                         .get().asFile.absolutePath,
 -                 nativeRoot.absolutePath])
--    }
--}
++        legacyClasspath.setText(filtered.join(System.lineSeparator())
++                + System.lineSeparator(), 'UTF-8')
+     }
+ }
 -
 -tasks.named('check') {
 -    dependsOn tasks.named('processorTest')
@@ -952,10 +963,8 @@ index 716c905..7fc5bba 100644
 -                sourceSets.mockSupport.output + sourceSets.mockSupervisor.output
 -        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath +
 -                sourceSets.mockSupport.output + sourceSets.mockSupervisor.output
-+        legacyClasspath.setText(filtered.join(System.lineSeparator())
-+                + System.lineSeparator(), 'UTF-8')
-     }
- }
+-    }
+-}
 -
 -def playgroundMainClass = providers.gradleProperty('playgroundMainClass')
 -        .orElse('com.elfmcys.ysm.playground.Playground')
@@ -1210,7 +1219,7 @@ index 49c018a..9aef852 100644
  - Select: OS/ISA 基线、native 依赖、社区与 Android 启动器
  - Needs:
 diff --git a/docs/status/support-and-verification.md b/docs/status/support-and-verification.md
-index 8fad317..57f4aec 100644
+index 8fad317..f34fc49 100644
 --- a/docs/status/support-and-verification.md
 +++ b/docs/status/support-and-verification.md
 @@ -1,5 +1,16 @@
@@ -1224,7 +1233,7 @@ index 8fad317..57f4aec 100644
 +
 +- Java compilation, `portableTest`, `shadowJar`, `check -x test` and built-in model materialization passed locally. The full Windows-hosted `test` task ran 600 test cases: 587 passed, 4 failed, 9 skipped. The four failures are symbolic-link security tests blocked by this Windows account's missing symlink privilege; they remain enabled and must pass on a suitable CI runner.
 +- Focused native-runtime integration and 31 focused audio tests passed. The legacy model corpus imported 901/906 inputs; three malformed Opus files and two files missing player textures were rejected.
-+- Prior CI observations include successful Apple Silicon native build/tests and Windows native build/tests, but the latest cross-platform workflow must rerun for this source revision.
++- Current CI rebuilt and passed Windows x64 and Apple Silicon ARM64 native tests. NeoForge integration stopped before Java tests at `generateProto` because the NeoForged Maven mirror lacks the macOS ARM64 Protobuf compiler artifact; Maven Central has it. The build now routes `com.google.protobuf` exclusively to Maven Central and needs a fresh CI run.
 +- A physical Apple Silicon Minecraft session, Microsoft account flow, actual model rendering/animation, Iris/Distant Horizons, multiplayer synchronization and live-server connection remain untested. The artifact is not accepted for production or release.
 +
  “已接线”只表示主要代码链路存在，不代表稳定、完整或通过实机、跨平台及跨实现验证。格式与协议要求以[一致性标准](../standards/conformance.md)为准。
