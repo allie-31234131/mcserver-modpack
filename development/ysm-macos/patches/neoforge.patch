@@ -6904,7 +6904,7 @@ index e394c41..ef59871 100644
          DEFAULT_MODEL_PATH = builder.define("DefaultModelPath", "default");
  
 diff --git a/src/main/java/com/elfmcys/ysm/event/CapabilityEvent.java b/src/main/java/com/elfmcys/ysm/event/CapabilityEvent.java
-index 7593963..c4321f6 100644
+index 7593963..fc04cb5 100644
 --- a/src/main/java/com/elfmcys/ysm/event/CapabilityEvent.java
 +++ b/src/main/java/com/elfmcys/ysm/event/CapabilityEvent.java
 @@ -30,80 +30,31 @@ import net.minecraft.server.level.ServerPlayer;
@@ -7050,7 +7050,23 @@ index 7593963..c4321f6 100644
                  if (cap.isInitialized()) {
                      NetworkHandler.sendToClientPlayer(
                              MinecraftStateHandler.vehicle(event.getTarget().getId(), cap), event.getEntity());
-@@ -188,11 +138,11 @@ public final class CapabilityEvent {
+@@ -177,10 +127,11 @@ public final class CapabilityEvent {
+             getAuthModelsCap(serverPlayer).ifPresent(authModelsCap ->
+                     SessionProtocolHandler.refreshGrants(serverPlayer));
+ 
+-            getStarModelsCap(serverPlayer).ifPresent(starModelCap -> {
+-                NetworkHandler.sendToClientPlayer(
+-                        StarredModelSnapshots.create(starModelCap.getStarModels()), serverPlayer);
+-            });
++            if (NetworkHandler.isPlayerChannelPresent(serverPlayer)) {
++                getStarModelsCap(serverPlayer).ifPresent(starModelCap ->
++                        NetworkHandler.sendToClientPlayer(
++                                StarredModelSnapshots.create(starModelCap.getStarModels()), serverPlayer));
++            }
+         }
+     }
+ 
+@@ -188,11 +139,11 @@ public final class CapabilityEvent {
       * 同步客户端服务端数据
       */
      @SubscribeEvent
@@ -7064,7 +7080,7 @@ index 7593963..c4321f6 100644
              var players = event.getServer().getPlayerList().getPlayers();
              var lowBandwidthUsage = ServerConfig.LOW_BANDWIDTH_USAGE.get();
              for (ServerPlayer player : players) {
-@@ -227,11 +177,11 @@ public final class CapabilityEvent {
+@@ -227,11 +178,11 @@ public final class CapabilityEvent {
      }
  
      public static void onProjectileSetOwner(Projectile projectile, ServerPlayer owner) {
@@ -7078,7 +7094,7 @@ index 7593963..c4321f6 100644
                  ownerCap.executeWithMolangVars(molangVars -> {
                      cap.init(ownerCap.getModelId(), molangVars);
                      NetworkHandler.broadcastToVisiblePlayers(
-@@ -242,11 +192,11 @@ public final class CapabilityEvent {
+@@ -242,11 +193,11 @@ public final class CapabilityEvent {
      }
  
      public static void onVehicleSetModel(Entity vehicle, ServerPlayer owner) {
@@ -7092,7 +7108,7 @@ index 7593963..c4321f6 100644
                  // 失败就丢弃
                  ownerCap.getMolangVars().ifPresent(molangVars -> {
                      cap.update(ownerCap.getModelId(), molangVars);
-@@ -257,8 +207,8 @@ public final class CapabilityEvent {
+@@ -257,8 +208,8 @@ public final class CapabilityEvent {
          });
      }
  
@@ -7103,7 +7119,7 @@ index 7593963..c4321f6 100644
      }
  
      private static Optional<PlayerStateUpdate> buildModelInfoPacket(
-@@ -268,11 +218,11 @@ public final class CapabilityEvent {
+@@ -268,11 +219,11 @@ public final class CapabilityEvent {
                          player, capability, snapshot));
      }
  
@@ -8436,10 +8452,10 @@ index 0000000..0e155bf
 +    }
 +}
 diff --git a/src/main/java/com/elfmcys/ysm/network/NetworkHandler.java b/src/main/java/com/elfmcys/ysm/network/NetworkHandler.java
-index 303befd..75bdbde 100644
+index 303befd..066f800 100644
 --- a/src/main/java/com/elfmcys/ysm/network/NetworkHandler.java
 +++ b/src/main/java/com/elfmcys/ysm/network/NetworkHandler.java
-@@ -3,77 +3,82 @@ package com.elfmcys.ysm.network;
+@@ -3,77 +3,84 @@ package com.elfmcys.ysm.network;
  import com.elfmcys.ysm.YesSteveModel;
  import com.elfmcys.ysm.buffer.ArrayBuffer;
  import com.elfmcys.ysm.buffer.UniBuffer;
@@ -8509,7 +8525,9 @@ index 303befd..75bdbde 100644
 -                receive(event, MessageDirection.SERVER_TO_CLIENT));
 -        CHANNEL.addListener((NetworkEvent.ClientCustomPayloadEvent event) ->
 -                receive(event, MessageDirection.CLIENT_TO_SERVER));
-+        // Registered during RegisterPayloadHandlersEvent, before common setup.
++        // Force registry initialization during mod setup so side-linkage failures
++        // surface before a player joins the dedicated server.
++        ProtocolMessages.REGISTRY.messages();
      }
  
 -    @SuppressWarnings("ConstantValue")
@@ -8552,7 +8570,7 @@ index 303befd..75bdbde 100644
      }
  
      public static void sendToClientPlayer(ProtoMessage<?> message, Player player) {
-@@ -81,42 +86,38 @@ public final class NetworkHandler {
+@@ -81,42 +88,38 @@ public final class NetworkHandler {
      }
  
      public static void sendToClientPlayer(NetworkPayload<?> payload, Player player) {
@@ -8614,7 +8632,7 @@ index 303befd..75bdbde 100644
              spec.attachmentPolicy().validate(attachment.size());
              try (var frame = FrameCodec.encode(spec.id(), protobuf, attachment)) {
                  sendFrame(target, frame);
-@@ -124,40 +125,26 @@ public final class NetworkHandler {
+@@ -124,40 +127,26 @@ public final class NetworkHandler {
          }
      }
  
@@ -8665,7 +8683,7 @@ index 303befd..75bdbde 100644
          }
      }
  
-@@ -165,4 +152,21 @@ public final class NetworkHandler {
+@@ -165,4 +154,21 @@ public final class NetworkHandler {
      private static NetworkPayload<?> payload(ProtoMessage<?> message) {
          return NetworkPayload.protobuf((ProtoMessage) message);
      }
@@ -8719,10 +8737,19 @@ index 767ce9c..43e363e 100644
          var attachment = frame.attachment();
          if (protobuf.size() > spec.maxEncodedBytes()) {
 diff --git a/src/main/java/com/elfmcys/ysm/network/forge/ControlHandler.java b/src/main/java/com/elfmcys/ysm/network/forge/ControlHandler.java
-index 7c1646a..502f651 100644
+index 7c1646a..590e1f6 100644
 --- a/src/main/java/com/elfmcys/ysm/network/forge/ControlHandler.java
 +++ b/src/main/java/com/elfmcys/ysm/network/forge/ControlHandler.java
-@@ -45,7 +45,7 @@ import net.minecraft.world.entity.Entity;
+@@ -34,6 +34,8 @@ import java.util.HashSet;
+ import java.util.Set;
+ import java.util.function.Supplier;
+ import net.minecraft.client.Minecraft;
++import net.neoforged.api.distmarker.Dist;
++import net.neoforged.api.distmarker.OnlyIn;
+ import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
+ import net.minecraft.server.level.ServerChunkCache;
+ import net.minecraft.server.level.ServerLevel;
+@@ -45,7 +47,7 @@ import net.minecraft.world.entity.Entity;
  import net.minecraft.world.entity.LivingEntity;
  import net.minecraft.world.entity.player.Player;
  import net.minecraft.world.item.ItemStack;
@@ -8731,9 +8758,11 @@ index 7c1646a..502f651 100644
  
  public final class ControlHandler {
      private static final int MAX_MOLANG_TARGETS = 1024;
-@@ -56,29 +56,29 @@ public final class ControlHandler {
+@@ -55,30 +57,31 @@ public final class ControlHandler {
+     private ControlHandler() {
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleStarredModels(StarredModelsSnapshot message,
 -                                           Supplier<NetworkEvent.Context> contextSupplier) {
 +                                           Supplier<IPayloadContext> contextSupplier) {
@@ -8768,7 +8797,7 @@ index 7c1646a..502f651 100644
                      .ifPresent(capability -> {
                          if (message.operation() == StarredModelOperation.STARRED_MODEL_OPERATION_ADD) {
                              capability.addModel(hash);
-@@ -87,13 +87,13 @@ public final class ControlHandler {
+@@ -87,13 +90,13 @@ public final class ControlHandler {
                          }
                      }));
          }
@@ -8785,7 +8814,7 @@ index 7c1646a..502f651 100644
          if (sender != null && validNonPlayerTarget(message.target())) {
              enqueueServer(context, sender, () -> {
                  var entity = sender.serverLevel().getEntity(message.target().entityId());
-@@ -106,25 +106,25 @@ public final class ControlHandler {
+@@ -106,25 +109,26 @@ public final class ControlHandler {
                  }
              });
          }
@@ -8793,6 +8822,7 @@ index 7c1646a..502f651 100644
 +
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleExecuteMolang(ExecuteMolangEvent message,
 -                                           Supplier<NetworkEvent.Context> contextSupplier) {
 +                                           Supplier<IPayloadContext> contextSupplier) {
@@ -8817,7 +8847,7 @@ index 7c1646a..502f651 100644
          if (sender != null && message.hasTarget() && !message.target().orElseThrow().hasPlayerId()
                  && message.expression().length() <= MAX_EXPRESSION_LENGTH) {
              enqueueServer(context, sender, () -> {
-@@ -138,13 +138,13 @@ public final class ControlHandler {
+@@ -138,13 +142,13 @@ public final class ControlHandler {
                  NetworkHandler.broadcastToVisiblePlayers(event, entity);
              });
          }
@@ -8834,7 +8864,7 @@ index 7c1646a..502f651 100644
          if (sender != null && validArguments(message.arguments())) {
              enqueueServer(context, sender, () -> {
                  var event = MolangSyncEvent.newBuilder()
-@@ -154,42 +154,42 @@ public final class ControlHandler {
+@@ -154,42 +158,43 @@ public final class ControlHandler {
                  NetworkHandler.broadcastToVisiblePlayersAndSelf(event.build(), sender);
              });
          }
@@ -8842,6 +8872,7 @@ index 7c1646a..502f651 100644
 +
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleMolangSync(MolangSyncEvent message,
 -                                        Supplier<NetworkEvent.Context> contextSupplier) {
 +                                        Supplier<IPayloadContext> contextSupplier) {
@@ -8887,7 +8918,7 @@ index 7c1646a..502f651 100644
          var service = ServerModelService.current().orElse(null);
          var owner = service == null ? null
                  : service.session(sender, connection).orElse(null);
-@@ -210,8 +210,7 @@ public final class ControlHandler {
+@@ -210,8 +215,7 @@ public final class ControlHandler {
  
      static void applyAcceptedModelSelection(ServerPlayer sender, Hash256 hash,
                                              String textureId, boolean publishState) {
@@ -8897,7 +8928,15 @@ index 7c1646a..502f651 100644
          if (modelCapability == null) {
              return;
          }
-@@ -257,7 +256,7 @@ public final class ControlHandler {
+@@ -250,6 +254,7 @@ public final class ControlHandler {
+         return true;
+     }
+ 
++    @OnlyIn(Dist.CLIENT)
+     private static void executeMolang(ExecuteMolangEvent message) {
+         var level = Minecraft.getInstance().level;
+         if (level == null) return;
+@@ -257,7 +262,7 @@ public final class ControlHandler {
              if (target.hasPlayerId()) continue;
              Entity entity = level.getEntity(target.entityId());
              if (entity instanceof Player player) {
@@ -8989,7 +9028,7 @@ index 5cf073f..c4e1cc0 100644
          } finally {
              Reference.reachabilityFence(source);
 diff --git a/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java b/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java
-index fe166e7..50dbb34 100644
+index fe166e7..f9a4b52 100644
 --- a/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java
 +++ b/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java
 @@ -16,9 +16,9 @@ import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
@@ -9005,9 +9044,11 @@ index fe166e7..50dbb34 100644
  
  public final class MinecraftStateHandler {
      private MinecraftStateHandler() {
-@@ -45,35 +45,35 @@ public final class MinecraftStateHandler {
+@@ -44,36 +44,38 @@ public final class MinecraftStateHandler {
+         return message.build();
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleProjectile(ProjectileModelState message,
 -                                        Supplier<NetworkEvent.Context> contextSupplier) {
 +                                        Supplier<IPayloadContext> contextSupplier) {
@@ -9028,6 +9069,7 @@ index fe166e7..50dbb34 100644
 +
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleVehicle(VehicleModelState message,
 -                                     Supplier<NetworkEvent.Context> contextSupplier) {
 +                                     Supplier<IPayloadContext> contextSupplier) {
@@ -9049,7 +9091,7 @@ index fe166e7..50dbb34 100644
      }
  
      private static void addVariables(
-@@ -97,7 +97,7 @@ public final class MinecraftStateHandler {
+@@ -97,7 +99,7 @@ public final class MinecraftStateHandler {
      @OnlyIn(Dist.CLIENT)
      @SuppressWarnings("DataFlowIssue")
      private static void applyProjectile(Entity entity, Hash256 modelHash, Int2FloatOpenHashMap variables) {
@@ -9058,7 +9100,7 @@ index fe166e7..50dbb34 100644
              var animatable = capability.getProjectileAnimatableCapabilityProvider().initialize();
              animatable.init(modelHash);
              animatable.initRoamingVars(variables);
-@@ -106,7 +106,7 @@ public final class MinecraftStateHandler {
+@@ -106,7 +108,7 @@ public final class MinecraftStateHandler {
  
      @OnlyIn(Dist.CLIENT)
      private static void applyVehicle(Entity entity, Hash256 modelHash, Int2FloatOpenHashMap variables) {
@@ -9068,11 +9110,15 @@ index fe166e7..50dbb34 100644
              animatable.init(modelHash);
              animatable.initRoamingVars(variables);
 diff --git a/src/main/java/com/elfmcys/ysm/network/forge/PlayerStateHandler.java b/src/main/java/com/elfmcys/ysm/network/forge/PlayerStateHandler.java
-index 313f1c0..6d33d92 100644
+index 313f1c0..64d509b 100644
 --- a/src/main/java/com/elfmcys/ysm/network/forge/PlayerStateHandler.java
 +++ b/src/main/java/com/elfmcys/ysm/network/forge/PlayerStateHandler.java
-@@ -33,7 +33,7 @@ import java.util.function.Supplier;
+@@ -31,9 +31,11 @@ import java.util.HashSet;
+ import java.util.Optional;
+ import java.util.function.Supplier;
  import net.minecraft.client.Minecraft;
++import net.neoforged.api.distmarker.Dist;
++import net.neoforged.api.distmarker.OnlyIn;
  import net.minecraft.server.level.ServerPlayer;
  import net.minecraft.world.entity.player.Player;
 -import net.minecraftforge.network.NetworkEvent;
@@ -9080,7 +9126,7 @@ index 313f1c0..6d33d92 100644
  import org.jetbrains.annotations.Nullable;
  
  public final class PlayerStateHandler {
-@@ -77,24 +77,24 @@ public final class PlayerStateHandler {
+@@ -77,24 +79,24 @@ public final class PlayerStateHandler {
      }
  
      public static void handleReport(PlayerStateReport report,
@@ -9111,7 +9157,7 @@ index 313f1c0..6d33d92 100644
              return;
          }
          context.enqueueWork(() -> service.runIfCurrent(sender, connection, owner, () -> {
-@@ -102,7 +102,7 @@ public final class PlayerStateHandler {
+@@ -102,7 +104,7 @@ public final class PlayerStateHandler {
                  if (!owner.acceptsPlayerStateReport(report)) {
                      return;
                  }
@@ -9120,7 +9166,7 @@ index 313f1c0..6d33d92 100644
                          .ifPresent(capability -> applyReport(
                                  sender, capability, owner, report));
              } catch (RuntimeException failure) {
-@@ -111,25 +111,24 @@ public final class PlayerStateHandler {
+@@ -111,25 +113,25 @@ public final class PlayerStateHandler {
                          sender.getScoreboardName(), failure);
              }
          }));
@@ -9128,6 +9174,7 @@ index 313f1c0..6d33d92 100644
 +
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleUpdate(PlayerStateUpdate update,
 -                                    Supplier<NetworkEvent.Context> contextSupplier) {
 +                                    Supplier<IPayloadContext> contextSupplier) {
@@ -9152,7 +9199,14 @@ index 313f1c0..6d33d92 100644
          if (capability == null) {
              return false;
          }
-@@ -296,7 +295,7 @@ public final class PlayerStateHandler {
+@@ -290,13 +292,14 @@ public final class PlayerStateHandler {
+         return true;
+     }
+ 
++    @OnlyIn(Dist.CLIENT)
+     private static void applyClientUpdate(PlayerStateUpdate update) {
+         var entityId = update.subject().entityId();
+         var level = Minecraft.getInstance().level;
          if (level == null || !(level.getEntity(entityId) instanceof Player player)) {
              return;
          }
@@ -9162,11 +9216,15 @@ index 313f1c0..6d33d92 100644
              var authoritativeModelHash = update.hasModel()
                      ? ModelReferenceCodec.read(update.modelUnsafe().model()) : null;
 diff --git a/src/main/java/com/elfmcys/ysm/network/forge/SessionProtocolHandler.java b/src/main/java/com/elfmcys/ysm/network/forge/SessionProtocolHandler.java
-index aafb766..4b64d1a 100644
+index aafb766..1889546 100644
 --- a/src/main/java/com/elfmcys/ysm/network/forge/SessionProtocolHandler.java
 +++ b/src/main/java/com/elfmcys/ysm/network/forge/SessionProtocolHandler.java
-@@ -44,7 +44,7 @@ import java.util.function.Supplier;
+@@ -42,9 +42,11 @@ import java.util.HashSet;
+ import java.util.List;
+ import java.util.function.Supplier;
  import java.util.stream.Collectors;
++import net.neoforged.api.distmarker.Dist;
++import net.neoforged.api.distmarker.OnlyIn;
  import net.minecraft.network.Connection;
  import net.minecraft.server.level.ServerPlayer;
 -import net.minecraftforge.network.NetworkEvent;
@@ -9174,9 +9232,11 @@ index aafb766..4b64d1a 100644
  import us.hebi.quickbuf.ProtoMessage;
  
  /** Typed model-session handlers; game-state publication is gated onto the owner thread. */
-@@ -67,12 +67,12 @@ public final class SessionProtocolHandler {
+@@ -66,13 +68,14 @@ public final class SessionProtocolHandler {
+                 .setSyncRoaming(session.syncRoaming()).build(), player);
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleServerHello(NetworkPayload<ServerHello> payload,
 -                                         Supplier<NetworkEvent.Context> contextSupplier) {
 +                                         Supplier<IPayloadContext> contextSupplier) {
@@ -9189,7 +9249,7 @@ index aafb766..4b64d1a 100644
              context.enqueueWork(() -> ClientSessionRuntime.runIfCurrent(connection, () -> {
                  var response = ClientSessionRuntime.onServerHello(
                          connection, message.protocolVersion(), message.syncRoaming()).orElse(null);
-@@ -96,15 +96,15 @@ public final class SessionProtocolHandler {
+@@ -96,15 +99,15 @@ public final class SessionProtocolHandler {
  
      public static void handleSessionResponse(
              NetworkPayload<SessionResponse> payload,
@@ -9208,8 +9268,11 @@ index aafb766..4b64d1a 100644
              var service = ServerModelService.current().orElse(null);
              var owner = service == null ? null
                      : service.session(sender, connection).orElse(null);
-@@ -118,12 +118,12 @@ public final class SessionProtocolHandler {
+@@ -116,27 +119,29 @@ public final class SessionProtocolHandler {
+         }
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleSessionFullFragment(
              NetworkPayload<SessionFullFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9223,8 +9286,9 @@ index aafb766..4b64d1a 100644
              context.enqueueWork(() -> ClientSessionRuntime.acceptSessionFullFragment(
                      connection, message));
          }
-@@ -131,12 +131,12 @@ public final class SessionProtocolHandler {
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleSessionDeltaFragment(
              NetworkPayload<SessionDeltaFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9238,7 +9302,7 @@ index aafb766..4b64d1a 100644
              context.enqueueWork(() -> ClientSessionRuntime.acceptSessionDeltaFragment(
                      connection, message));
          }
-@@ -144,16 +144,16 @@ public final class SessionProtocolHandler {
+@@ -144,16 +149,16 @@ public final class SessionProtocolHandler {
  
      public static void handleMetadataPrefixRequest(
              NetworkPayload<MetadataPrefixRequest> payload,
@@ -9258,7 +9322,7 @@ index aafb766..4b64d1a 100644
              var service = ServerModelService.current().orElse(null);
              var owner = service == null ? null
                      : service.session(sender, connection).orElse(null);
-@@ -167,16 +167,16 @@ public final class SessionProtocolHandler {
+@@ -167,16 +172,16 @@ public final class SessionProtocolHandler {
  
      public static void handleModelChunkRequest(
              NetworkPayload<ModelChunkRequest> payload,
@@ -9278,7 +9342,7 @@ index aafb766..4b64d1a 100644
              var service = ServerModelService.current().orElse(null);
              var owner = service == null ? null
                      : service.session(sender, connection).orElse(null);
-@@ -189,16 +189,16 @@ public final class SessionProtocolHandler {
+@@ -189,16 +194,16 @@ public final class SessionProtocolHandler {
  
      public static void handlePresentationPageRequest(
              NetworkPayload<PresentationPageRequest> payload,
@@ -9298,7 +9362,7 @@ index aafb766..4b64d1a 100644
              var service = ServerModelService.current().orElse(null);
              var owner = service == null ? null
                      : service.session(sender, connection).orElse(null);
-@@ -212,15 +212,15 @@ public final class SessionProtocolHandler {
+@@ -212,15 +217,15 @@ public final class SessionProtocolHandler {
  
      public static void handleResourceTransferCancel(
              NetworkPayload<ResourceTransferCancel> payload,
@@ -9317,8 +9381,11 @@ index aafb766..4b64d1a 100644
              var service = ServerModelService.current().orElse(null);
              var owner = service == null ? null
                      : service.session(sender, connection).orElse(null);
-@@ -235,12 +235,12 @@ public final class SessionProtocolHandler {
+@@ -233,38 +238,41 @@ public final class SessionProtocolHandler {
+         }
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleResourceTransferFailure(
              NetworkPayload<ResourceTransferFailure> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9332,8 +9399,9 @@ index aafb766..4b64d1a 100644
              context.enqueueWork(() -> ClientSessionRuntime.acceptResourceTransferFailure(
                      connection, message));
          }
-@@ -248,12 +248,12 @@ public final class SessionProtocolHandler {
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleMetadataPrefixFragment(
              NetworkPayload<MetadataPrefixFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9347,8 +9415,9 @@ index aafb766..4b64d1a 100644
              context.enqueueWork(() -> ClientSessionRuntime.acceptMetadataPrefixFragment(
                      connection, message));
          }
-@@ -261,10 +261,10 @@ public final class SessionProtocolHandler {
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleChunkFragment(
              NetworkPayload<ChunkFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9360,8 +9429,11 @@ index aafb766..4b64d1a 100644
          var data = payload.raw().orElseThrow(() ->
                  new IllegalArgumentException("ChunkFragment requires an attachment")).acquire();
          payload.close();
-@@ -277,36 +277,36 @@ public final class SessionProtocolHandler {
+@@ -275,38 +283,41 @@ public final class SessionProtocolHandler {
+         });
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handlePreviewFragment(
              NetworkPayload<PreviewFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9370,6 +9442,7 @@ index aafb766..4b64d1a 100644
                  ClientSessionRuntime::acceptPreviewFragment);
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleIconFragment(
              NetworkPayload<IconFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9378,6 +9451,7 @@ index aafb766..4b64d1a 100644
                  ClientSessionRuntime::acceptIconFragment);
      }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handlePackCoverFragment(
              NetworkPayload<PackCoverFragment> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9403,8 +9477,11 @@ index aafb766..4b64d1a 100644
              var service = ServerModelService.current().orElse(null);
              var owner = service == null ? null
                      : service.session(sender, connection).orElse(null);
-@@ -320,12 +320,12 @@ public final class SessionProtocolHandler {
+@@ -318,14 +329,15 @@ public final class SessionProtocolHandler {
+         }
+     }
  
++    @OnlyIn(Dist.CLIENT)
      public static void handleSelectModelResult(
              NetworkPayload<SelectModelResult> payload,
 -            Supplier<NetworkEvent.Context> contextSupplier) {
@@ -9418,7 +9495,7 @@ index aafb766..4b64d1a 100644
              context.enqueueWork(() -> ClientSessionRuntime.runIfCurrent(connection, () -> {
                  if (message.status()
                          == SelectionStatus.SELECTION_STATUS_UNSPECIFIED) {
-@@ -373,7 +373,7 @@ public final class SessionProtocolHandler {
+@@ -373,7 +385,7 @@ public final class SessionProtocolHandler {
          }
          var beforeGrants = session.grants();
          var beforeSelection = session.selection();
@@ -9427,7 +9504,7 @@ index aafb766..4b64d1a 100644
              session.setGrants(capability.getAuthModels().stream()
                      .filter(session::containsModel).collect(Collectors.toSet()));
              if (beforeSelection instanceof Selection.Model
-@@ -404,7 +404,7 @@ public final class SessionProtocolHandler {
+@@ -404,7 +416,7 @@ public final class SessionProtocolHandler {
          var serverCatalog = service.catalog().orElseThrow();
          var defaultModelId = serverCatalog.defaultModel()
                  .map(ManagedContainer::modelId).orElse(null);
@@ -9436,7 +9513,7 @@ index aafb766..4b64d1a 100644
              if (ModelSelectionService.resolve(capability, serverCatalog).isEmpty()) {
                  session.select(new Selection.IntrinsicDefault());
                  return;
-@@ -448,7 +448,7 @@ public final class SessionProtocolHandler {
+@@ -448,7 +460,7 @@ public final class SessionProtocolHandler {
              return;
          }
          var requestedGrants = new HashSet<Hash256>();
@@ -9445,7 +9522,7 @@ index aafb766..4b64d1a 100644
                  .ifPresent(capability -> requestedGrants.addAll(capability.getAuthModels()));
          var catalog = SessionCollectionPublication.distributableCatalog(globalCatalog);
          var previousSelection = session.selection();
-@@ -460,7 +460,7 @@ public final class SessionProtocolHandler {
+@@ -460,7 +472,7 @@ public final class SessionProtocolHandler {
                      player.getGameProfile().getName(), invalidPublication);
              return;
          }
@@ -9454,7 +9531,7 @@ index aafb766..4b64d1a 100644
                  .ifPresent(capability -> ModelSelectionService.resolve(
                          capability, new ServerCatalog(globalCatalog)));
          if (previousSelection instanceof Selection.Model
-@@ -523,11 +523,11 @@ public final class SessionProtocolHandler {
+@@ -523,11 +535,11 @@ public final class SessionProtocolHandler {
      }
  
      private static <T extends ProtoMessage<T>> void handlePresentationFragment(
@@ -9518,7 +9595,7 @@ index c7eb35a..33975f2 100644
      }
  }
 diff --git a/src/main/java/com/elfmcys/ysm/network/protocol/ProtocolMessages.java b/src/main/java/com/elfmcys/ysm/network/protocol/ProtocolMessages.java
-index 2c9ac42..eaf1157 100644
+index 2c9ac42..b3dbf76 100644
 --- a/src/main/java/com/elfmcys/ysm/network/protocol/ProtocolMessages.java
 +++ b/src/main/java/com/elfmcys/ysm/network/protocol/ProtocolMessages.java
 @@ -36,7 +36,7 @@ import com.elfmcys.ysm.proto.network.UpdateStarredModelRequest;
@@ -9530,7 +9607,101 @@ index 2c9ac42..eaf1157 100644
  import us.hebi.quickbuf.ProtoMessage;
  
  /** Stable ids and the only parser/handler registry for the current wire. */
-@@ -200,15 +200,15 @@ public final class ProtocolMessages {
+@@ -77,67 +77,67 @@ public final class ProtocolMessages {
+             .add(spec(SERVER_HELLO_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     ServerHello.class, ServerHello::parseFrom,
+-                    SessionProtocolHandler::handleServerHello))
++                    (payload, context) -> SessionProtocolHandler.handleServerHello(payload, context)))
+             .add(spec(SESSION_RESPONSE_ID, MessageDirection.CLIENT_TO_SERVER,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     SessionResponse.class, SessionResponse::parseFrom,
+-                    SessionProtocolHandler::handleSessionResponse))
++                    (payload, context) -> SessionProtocolHandler.handleSessionResponse(payload, context)))
+             .add(spec(SESSION_FULL_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     SessionFullFragment.class, SessionFullFragment::parseFrom,
+-                    SessionProtocolHandler::handleSessionFullFragment))
++                    (payload, context) -> SessionProtocolHandler.handleSessionFullFragment(payload, context)))
+             .add(spec(SESSION_DELTA_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     SessionDeltaFragment.class, SessionDeltaFragment::parseFrom,
+-                    SessionProtocolHandler::handleSessionDeltaFragment))
++                    (payload, context) -> SessionProtocolHandler.handleSessionDeltaFragment(payload, context)))
+             .add(spec(METADATA_PREFIX_REQUEST_ID, MessageDirection.CLIENT_TO_SERVER,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     MetadataPrefixRequest.class, MetadataPrefixRequest::parseFrom,
+-                    SessionProtocolHandler::handleMetadataPrefixRequest))
++                    (payload, context) -> SessionProtocolHandler.handleMetadataPrefixRequest(payload, context)))
+             .add(spec(MODEL_CHUNK_REQUEST_ID, MessageDirection.CLIENT_TO_SERVER,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     ModelChunkRequest.class, ModelChunkRequest::parseFrom,
+-                    SessionProtocolHandler::handleModelChunkRequest))
++                    (payload, context) -> SessionProtocolHandler.handleModelChunkRequest(payload, context)))
+             .add(spec(PRESENTATION_PAGE_REQUEST_ID, MessageDirection.CLIENT_TO_SERVER,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     PresentationPageRequest.class, PresentationPageRequest::parseFrom,
+-                    SessionProtocolHandler::handlePresentationPageRequest))
++                    (payload, context) -> SessionProtocolHandler.handlePresentationPageRequest(payload, context)))
+             .add(spec(RESOURCE_TRANSFER_CANCEL_ID, MessageDirection.CLIENT_TO_SERVER,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     ResourceTransferCancel.class, ResourceTransferCancel::parseFrom,
+-                    SessionProtocolHandler::handleResourceTransferCancel))
++                    (payload, context) -> SessionProtocolHandler.handleResourceTransferCancel(payload, context)))
+             .add(spec(RESOURCE_TRANSFER_FAILURE_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     ResourceTransferFailure.class, ResourceTransferFailure::parseFrom,
+-                    SessionProtocolHandler::handleResourceTransferFailure))
++                    (payload, context) -> SessionProtocolHandler.handleResourceTransferFailure(payload, context)))
+             .add(spec(SELECT_MODEL_REQUEST_ID, MessageDirection.CLIENT_TO_SERVER,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     SelectModelRequest.class, SelectModelRequest::parseFrom,
+-                    SessionProtocolHandler::handleSelectModelRequest))
++                    (payload, context) -> SessionProtocolHandler.handleSelectModelRequest(payload, context)))
+             .add(spec(SELECT_MODEL_RESULT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     SelectModelResult.class, SelectModelResult::parseFrom,
+-                    SessionProtocolHandler::handleSelectModelResult))
++                    (payload, context) -> SessionProtocolHandler.handleSelectModelResult(payload, context)))
+             .add(spec(METADATA_PREFIX_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.FORBIDDEN,
+                     MetadataPrefixFragment.class, MetadataPrefixFragment::parseFrom,
+-                    SessionProtocolHandler::handleMetadataPrefixFragment))
++                    (payload, context) -> SessionProtocolHandler.handleMetadataPrefixFragment(payload, context)))
+             .add(spec(CHUNK_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.REQUIRED,
+                     ChunkFragment.class, ChunkFragment::parseFrom,
+-                    SessionProtocolHandler::handleChunkFragment))
++                    (payload, context) -> SessionProtocolHandler.handleChunkFragment(payload, context)))
+             .add(spec(PREVIEW_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.CONDITIONAL,
+                     PreviewFragment.class, PreviewFragment::parseFrom,
+-                    SessionProtocolHandler::handlePreviewFragment))
++                    (payload, context) -> SessionProtocolHandler.handlePreviewFragment(payload, context)))
+             .add(spec(ICON_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.CONDITIONAL,
+                     IconFragment.class, IconFragment::parseFrom,
+-                    SessionProtocolHandler::handleIconFragment))
++                    (payload, context) -> SessionProtocolHandler.handleIconFragment(payload, context)))
+             .add(spec(PACK_COVER_FRAGMENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ProtocolMessageSpec.AttachmentPolicy.CONDITIONAL,
+                     PackCoverFragment.class, PackCoverFragment::parseFrom,
+-                    SessionProtocolHandler::handlePackCoverFragment))
++                    (payload, context) -> SessionProtocolHandler.handlePackCoverFragment(payload, context)))
+             .add(proto(PLAYER_STATE_REPORT_ID, MessageDirection.CLIENT_TO_SERVER,
+                     PlayerStateReport.class, ProtocolLimits.MAX_PLAYER_STATE_BYTES,
+                     PlayerStateReport::parseFrom,
+@@ -160,7 +160,8 @@ public final class ProtocolMessages {
+                     (message, context) -> ControlHandler.handleEntityAnimation(message, context)))
+             .add(proto(EXECUTE_MOLANG_EVENT_ID, MessageDirection.SERVER_TO_CLIENT,
+                     ExecuteMolangEvent.class, ProtocolLimits.MAX_MOLANG_EVENT_BYTES,
+-                    ExecuteMolangEvent::parseFrom, ControlHandler::handleExecuteMolang))
++                    ExecuteMolangEvent::parseFrom,
++                    (message, context) -> ControlHandler.handleExecuteMolang(message, context)))
+             .add(proto(SUBMIT_ROULETTE_EXPRESSION_REQUEST_ID, MessageDirection.CLIENT_TO_SERVER,
+                     SubmitRouletteExpressionRequest.class, ProtocolLimits.MAX_ENTITY_ACTION_BYTES,
+                     SubmitRouletteExpressionRequest::parseFrom, ControlHandler::handleSubmitRoulette))
+@@ -200,15 +201,15 @@ public final class ProtocolMessages {
      private static <T extends ProtoMessage<T>> ProtocolMessageSpec<T> proto(
              int id, MessageDirection direction, Class<T> type, int maxBytes,
              ProtocolMessageSpec.Parser<T> parser,
