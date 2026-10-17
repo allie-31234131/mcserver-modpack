@@ -1241,27 +1241,29 @@ index f47e177..fb5aae8 100644
  - 当前代码在 MSVC 19.51 的 fresh Release source build 会在既有 GNU-style `asm volatile` 处失败。既有 Release binary 的 bake/JNI 聚焦测试可以证明被冻结制品的行为，但不能替代当前源码生成的新 native artifact。
  - Codec 与 archive 验证尚未覆盖全部产品平台；存在 native 构建目标或库文件不等于产品入口已经接通或验收。
 diff --git a/docs/status/support-and-verification.md b/docs/status/support-and-verification.md
-index 8fad317..360a554 100644
+index 8fad317..6a81fb1 100644
 --- a/docs/status/support-and-verification.md
 +++ b/docs/status/support-and-verification.md
-@@ -1,5 +1,16 @@
+@@ -1,5 +1,18 @@
  # 当前支持状态
  
 +本页下列测试数字和 Forge 观察继承自上游，不能作为 MCServer NeoForge 1.21.1 fork 的已通过记录。本 fork 的实现范围、独立验证门槛和当前未验收项目见[MCServer port](../mcserver-neoforge-port.md)。
 +
 +## MCServer community fork evidence (2026-10-17 KST)
 +
-+The development JAR currently targets Minecraft 1.21.1 / NeoForge 21.1.256 / Java 21 and contains Mach-O ARM64 macOS and PE Windows x64 native libraries. Its inspected SHA-256 is `bb823028cfff5ea0d86f87b2056e186a586ad0022a3d54e602371e3ca284b071`; this identifies a local development artifact, not a release.
++The development JAR targets Minecraft 1.21.1 / NeoForge 21.1.256 / Java 21 and contains Mach-O ARM64 macOS and PE Windows x64 native libraries. The latest CI artifact SHA-256 is `7df03ddf8dd75ece905d5acc7587d16026ff9cabd4238e32ab763ac38e413a67`; it is a development build, not a release. The verified build is recorded in [GitHub Actions](https://github.com/allie-31234131/mcserver-modpack/actions/runs/38997979344).
 +
-+- Java compilation, `portableTest`, `shadowJar`, `check -x test` and built-in model materialization passed locally. The full Windows-hosted `test` task ran 600 test cases: 587 passed, 4 failed, 9 skipped. The four failures are symbolic-link security tests blocked by this Windows account's missing symlink privilege; they remain enabled and must pass on a suitable CI runner.
-+- Focused native-runtime integration and 31 focused audio tests passed. The legacy model corpus imported 901/906 inputs; three malformed Opus files and two files missing player textures were rejected.
-+- Current CI rebuilt and passed Windows x64 and Apple Silicon ARM64 native tests. NeoForge integration stopped before Java tests at `generateProto` because the NeoForged Maven mirror lacks the macOS ARM64 Protobuf compiler artifact; Maven Central has it. The build now routes `com.google.protobuf` exclusively to Maven Central and needs a fresh CI run.
++- PASS: fresh Windows x64 and Apple Silicon ARM64 native builds and tests; the Mac native suite ran 141 tests with zero failures. The Mac JNI library links only to operating-system libraries, with libc++ statically bundled.
++- PASS: NeoForge `test` ran 600 cases with zero failures/errors and 9 skipped; `portableTest` ran 8 with zero failures/errors. `check`, `shadowJar`, built-in model indexing and full materialization also passed; the index contains 27 models, including the default proof.
++- PASS: malformed top-level, nested and packed Protobuf geometry is rejected before native decoding. The prior Apple Silicon process-abort regression is covered by C++ and Java/JNI tests.
++- NOT TESTED: opening Minecraft on a physical Apple Silicon Mac; Microsoft account flow; model selection and rendering in a world; Iris/Distant Horizons; live-server join/synchronization; sustained gameplay. Automated CI does not establish those outcomes.
++- The local Windows account previously could not run four symbolic-link security tests because it lacked the required privilege; the same full Java suite passed on the macOS CI runner. No test was disabled.
 +- A physical Apple Silicon Minecraft session, Microsoft account flow, actual model rendering/animation, Iris/Distant Horizons, multiplayer synchronization and live-server connection remain untested. The artifact is not accepted for production or release.
 +
  “已接线”只表示主要代码链路存在，不代表稳定、完整或通过实机、跨平台及跨实现验证。格式与协议要求以[一致性标准](../standards/conformance.md)为准。
  
  | 能力 | 当前边界 |
-@@ -12,7 +23,7 @@
+@@ -12,7 +25,7 @@
  | Java 动画运行时 | animation、coded / Bedrock / hybrid controller、玩家状态、骨骼输出与模型声音触发主链已接线，模型 execution-bearing 字段携带 Molang source 字符串，由 `com.elfmcys.ysm.molang` 的 lexer/parser/`ExpressionEvaluator` 与 `client.animation.molang` 的 binding 在本地逐次解析和求值；Roaming 由 `LocalRoamingStruct` / `RemoteRoamingStruct` 记录并消费 full 与 delta，`AnimationProcessor.putRemoteStruct` 把它们交给 entity 的 processor。Java `test` task 最近执行 575 项，0 failure、0 error、9 skipped，覆盖 animation/controller Proto、模型导入、Roaming 和模型音频局部边界。表达式解释器仍没有专门单元测试，也没有 Minecraft/Forge world 级、多 pass、`ysm.sync`、config-action、声音 once-only 或性能测量；不能声明运行时验收通过，见[动画问题](known-issues/animation.md) |
  | Native CPU renderer | bake / extract / render、SIMD 与多线程顶点生成已接线；已有 Release binary 的 bake/JNI 聚焦测试通过，但当前源码的 MSVC 19.51 fresh Release build 在既有 GNU-style `asm volatile` 处失败，不能据旧 binary 声明 fresh native artifact 已验证；自动化基线和视觉验收也未收敛，见[格式与构建问题](known-issues/format-and-schema.md#codec导入与平台)和[渲染问题](known-issues/rendering.md) |
  | 图像 codec | Native 解码覆盖 PNG、JPEG、WebP、AVIF、ZTX，编码仅覆盖 WebP、AVIF、ZTX；平台组合未完整验证，JPEG XL 不支持 |
