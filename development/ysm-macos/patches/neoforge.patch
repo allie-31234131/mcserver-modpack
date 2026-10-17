@@ -1241,7 +1241,7 @@ index f47e177..fb5aae8 100644
  - 当前代码在 MSVC 19.51 的 fresh Release source build 会在既有 GNU-style `asm volatile` 处失败。既有 Release binary 的 bake/JNI 聚焦测试可以证明被冻结制品的行为，但不能替代当前源码生成的新 native artifact。
  - Codec 与 archive 验证尚未覆盖全部产品平台；存在 native 构建目标或库文件不等于产品入口已经接通或验收。
 diff --git a/docs/status/support-and-verification.md b/docs/status/support-and-verification.md
-index 8fad317..6a81fb1 100644
+index 8fad317..db508a7 100644
 --- a/docs/status/support-and-verification.md
 +++ b/docs/status/support-and-verification.md
 @@ -1,5 +1,18 @@
@@ -1251,7 +1251,7 @@ index 8fad317..6a81fb1 100644
 +
 +## MCServer community fork evidence (2026-10-17 KST)
 +
-+The development JAR targets Minecraft 1.21.1 / NeoForge 21.1.256 / Java 21 and contains Mach-O ARM64 macOS and PE Windows x64 native libraries. The latest CI artifact SHA-256 is `7df03ddf8dd75ece905d5acc7587d16026ff9cabd4238e32ab763ac38e413a67`; it is a development build, not a release. The verified build is recorded in [GitHub Actions](https://github.com/allie-31234131/mcserver-modpack/actions/runs/38997979344).
++The development JAR targets Minecraft 1.21.1 / NeoForge 21.1.256 / Java 21 and contains Mach-O ARM64 macOS and PE Windows x64 native libraries. A successful CI build is recorded in [GitHub Actions](https://github.com/allie-31234131/mcserver-modpack/actions/runs/38999351655). It is a development build, not a release; exact artifact checksums are kept with the specific build output.
 +
 +- PASS: fresh Windows x64 and Apple Silicon ARM64 native builds and tests; the Mac native suite ran 141 tests with zero failures. The Mac JNI library links only to operating-system libraries, with libc++ statically bundled.
 +- PASS: NeoForge `test` ran 600 cases with zero failures/errors and 9 skipped; `portableTest` ran 8 with zero failures/errors. `check`, `shadowJar`, built-in model indexing and full materialization also passed; the index contains 27 models, including the default proof.
