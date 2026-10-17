@@ -1172,6 +1172,19 @@ index 0bcbd35..967273b 100644
  JNI 返回成功也不自动提交外部状态。例如 `NativeRenderer.render()` 只有在 native 成功后才调用 fallback writer 或推进 direct vertex region；模型 Ready 与纹理 publication 则由 Java resource owner 决定。异常、预算和内容失效对系统的影响最终回到[领域失败处理](../model-management/failure-and-recovery.md)。
  
  Buffer 与 handle 的具体约束见[JNI 与内存](jni-and-memory.md)。
+diff --git a/docs/architecture/native-runtime/jni-and-memory.md b/docs/architecture/native-runtime/jni-and-memory.md
+index c3c59b9..51fe0e7 100644
+--- a/docs/architecture/native-runtime/jni-and-memory.md
++++ b/docs/architecture/native-runtime/jni-and-memory.md
+@@ -4,7 +4,7 @@
+ 
+ ## Buffer 传递
+ 
+-`buffer.UniBuffer` 统一 array 与 native memory 的访问。`natives.buffer.BufferArgument.packInput()` 把底层对象、类型、offset 和 size 编成 JNI 输入，`ysm::java::BufferInput` 在 native 入口还原范围并验证容量。该描述符只是本次调用的内存视图，不是持久资源 handle。
++`buffer.UniBuffer` 统一 array 与 native memory 的访问。`natives.buffer.BufferArgument.packInput()` 把底层对象、类型、offset 和 size 编成 JNI 输入，`ysm::java::BufferInput` 在 native 入口还原范围并验证容量。该描述符只是本次调用的内存视图，不是持久资源 handle。`NativeHeapBuffer` 通过 JNI `NewDirectByteBuffer` 创建受 owner 生命周期约束的 NIO view，并通过 `GetDirectBufferAddress` 取得 direct buffer 起始地址，因此共用缓冲区、模型解析和网络路径不依赖客户端 LWJGL；LWJGL 的地址适配只留在图形渲染代码。
+ 
+ | 形式 | 实现机制 | 使用边界 |
+ |---|---|---|
 diff --git a/docs/build.md b/docs/build.md
 index f964da3..a9a9ecc 100644
 --- a/docs/build.md
@@ -1598,6 +1611,104 @@ index af43497..fec58b5 100644
      private final Object target;
      private final TargetKind targetKind;
      private final GeoRenderData renderData;
+diff --git a/src/main/java/com/elfmcys/ysm/buffer/MappedFileBuffer.java b/src/main/java/com/elfmcys/ysm/buffer/MappedFileBuffer.java
+index 961a898..a0fd36d 100644
+--- a/src/main/java/com/elfmcys/ysm/buffer/MappedFileBuffer.java
++++ b/src/main/java/com/elfmcys/ysm/buffer/MappedFileBuffer.java
+@@ -1,8 +1,8 @@
+ package com.elfmcys.ysm.buffer;
+ 
++import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
+ import com.elfmcys.ysm.util.CleanerUtil;
+ import com.elfmcys.ysm.util.UnsafeUtil;
+-import org.lwjgl.system.MemoryUtil;
+ 
+ import java.io.IOException;
+ import java.lang.ref.Cleaner;
+@@ -21,7 +21,7 @@ class MappedFileBuffer implements NativeBuffer {
+     MappedFileBuffer(FileChannel file, long offset, long size) throws IOException {
+         var mapped = file.map(FileChannel.MapMode.READ_ONLY, offset, size);
+         data = mapped.duplicate();
+-        headPtr = MemoryUtil.memAddress(mapped);
++        headPtr = NativeHeapBuffer.addressOf(mapped);
+         ownership = new Ownership(new Backing(mapped));
+     }
+ 
+@@ -51,7 +51,7 @@ class MappedFileBuffer implements NativeBuffer {
+             throw new IndexOutOfBoundsException();
+         }
+         var sliced = data.slice(offset, size);
+-        return new MappedFileBuffer(sliced, MemoryUtil.memAddress(sliced), ownership);
++        return new MappedFileBuffer(sliced, NativeHeapBuffer.addressOf(sliced), ownership);
+     }
+ 
+     @Override
+diff --git a/src/main/java/com/elfmcys/ysm/buffer/NativeBuffer.java b/src/main/java/com/elfmcys/ysm/buffer/NativeBuffer.java
+index 3f3c4e1..105899f 100644
+--- a/src/main/java/com/elfmcys/ysm/buffer/NativeBuffer.java
++++ b/src/main/java/com/elfmcys/ysm/buffer/NativeBuffer.java
+@@ -2,7 +2,6 @@ package com.elfmcys.ysm.buffer;
+ 
+ import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
+ import com.elfmcys.ysm.util.ScopeGuard;
+-import org.lwjgl.system.MemoryUtil;
+ 
+ import java.io.IOException;
+ import java.lang.ref.Reference;
+@@ -29,7 +28,7 @@ public interface NativeBuffer extends UniBuffer {
+         try (var bufScope = allocateWithScope(size)) {
+             var target = bufScope.get();
+             try {
+-                MemoryUtil.memCopy(ptr(), target.ptr(), size);
++                target.nio().put(nio());
+             } finally {
+                 Reference.reachabilityFence(this);
+                 Reference.reachabilityFence(target);
+@@ -91,11 +90,7 @@ public interface NativeBuffer extends UniBuffer {
+     static NativeBuffer copyOf(ByteBuffer data) {
+         var result = allocate(data.remaining());
+         try {
+-            if (data.isDirect()) {
+-                MemoryUtil.memCopy(MemoryUtil.memAddress(data), result.ptr(), result.size());
+-            } else {
+-                result.nio().put(data.duplicate());
+-            }
++            result.nio().put(data.duplicate());
+         } catch (RuntimeException | Error error) {
+             result.close();
+             throw error;
+diff --git a/src/main/java/com/elfmcys/ysm/buffer/NativeNioBuffer.java b/src/main/java/com/elfmcys/ysm/buffer/NativeNioBuffer.java
+index e1015a3..1039342 100644
+--- a/src/main/java/com/elfmcys/ysm/buffer/NativeNioBuffer.java
++++ b/src/main/java/com/elfmcys/ysm/buffer/NativeNioBuffer.java
+@@ -1,8 +1,8 @@
+ package com.elfmcys.ysm.buffer;
+ 
++import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
+ import com.elfmcys.ysm.util.CleanerUtil;
+ import com.elfmcys.ysm.util.UnsafeUtil;
+-import org.lwjgl.system.MemoryUtil;
+ 
+ import java.lang.ref.Cleaner;
+ import java.nio.ByteBuffer;
+@@ -20,7 +20,7 @@ class NativeNioBuffer implements NativeBuffer {
+         }
+         var view = data.slice();
+         this.data = view;
+-        headPtr = MemoryUtil.memAddress(view);
++        headPtr = NativeHeapBuffer.addressOf(view);
+         ownership = owning ? new Ownership(new Backing(data)) : null;
+     }
+ 
+@@ -53,7 +53,7 @@ class NativeNioBuffer implements NativeBuffer {
+             throw new IndexOutOfBoundsException();
+         }
+         var sliced = data.slice(offset, size);
+-        return new NativeNioBuffer(sliced, MemoryUtil.memAddress(sliced), ownership);
++        return new NativeNioBuffer(sliced, NativeHeapBuffer.addressOf(sliced), ownership);
+     }
+ 
+     @Override
 diff --git a/src/main/java/com/elfmcys/ysm/capability/AuthModelsCapabilityProvider.java b/src/main/java/com/elfmcys/ysm/capability/AuthModelsCapabilityProvider.java
 index 9ffd605..fc1e452 100644
 --- a/src/main/java/com/elfmcys/ysm/capability/AuthModelsCapabilityProvider.java
@@ -8109,6 +8220,146 @@ index cfb7d8d..9d4e2ea 100644
          if (state == null || state.session != owner) {
              throw new IllegalStateException("Model session is not current");
          }
+diff --git a/src/main/java/com/elfmcys/ysm/natives/buffer/NativeHeapBuffer.java b/src/main/java/com/elfmcys/ysm/natives/buffer/NativeHeapBuffer.java
+index 56efe58..7e27aa8 100644
+--- a/src/main/java/com/elfmcys/ysm/natives/buffer/NativeHeapBuffer.java
++++ b/src/main/java/com/elfmcys/ysm/natives/buffer/NativeHeapBuffer.java
+@@ -2,10 +2,10 @@ package com.elfmcys.ysm.natives.buffer;
+ 
+ import com.elfmcys.ysm.buffer.NativeBuffer;
+ import com.elfmcys.ysm.util.CleanerUtil;
+-import org.lwjgl.system.MemoryUtil;
+ 
+ import java.lang.ref.Cleaner;
+ import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
+@@ -27,7 +27,7 @@ public class NativeHeapBuffer implements NativeBuffer {
+             throw new OutOfMemoryError();
+         }
+         headPtr = ptr;
+-        data = MemoryUtil.memByteBuffer(ptr, size);
++        data = nativeView(ptr, size);
+         ownership = new Ownership(new Backing(ptr));
+     }
+ 
+@@ -38,9 +38,9 @@ public class NativeHeapBuffer implements NativeBuffer {
+         if (!ownedMem.isDirect()) {
+             throw new IllegalArgumentException("Buffer is not direct");
+         }
+-        var base = MemoryUtil.memAddressSafe(ownedMem) - ownedMem.position();
++        var base = addressOf(ownedMem);
+         headPtr = base + ownedMem.position();
+-        data = MemoryUtil.memByteBuffer(headPtr, ownedMem.remaining());
++        data = nativeView(headPtr, ownedMem.remaining());
+         ownership = new Ownership(new Backing(base));
+     }
+ 
+@@ -69,7 +69,7 @@ public class NativeHeapBuffer implements NativeBuffer {
+             throw new IndexOutOfBoundsException();
+         }
+         var slicePtr = headPtr + offset;
+-        return new NativeHeapBuffer(slicePtr, MemoryUtil.memByteBuffer(slicePtr, size), ownership);
++        return new NativeHeapBuffer(slicePtr, nativeView(slicePtr, size), ownership);
+     }
+ 
+     @Override
+@@ -95,6 +95,32 @@ public class NativeHeapBuffer implements NativeBuffer {
+         ownership.close();
+     }
+ 
++    /** Returns the address at index zero of a direct NIO buffer. */
++    public static long addressOf(ByteBuffer buffer) {
++        if (buffer == null || !buffer.isDirect()) {
++            throw new IllegalArgumentException("Buffer is not direct");
++        }
++        long address = nAddress(buffer);
++        if (address == 0 && buffer.capacity() != 0) {
++            throw new IllegalArgumentException("Direct buffer has no native address");
++        }
++        return address;
++    }
++
++    private static ByteBuffer nativeView(long address, int size) {
++        if (size < 0) {
++            throw new IllegalArgumentException("Negative buffer size");
++        }
++        if (size == 0) {
++            return ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder());
++        }
++        ByteBuffer view = nView(address, size);
++        if (view == null) {
++            throw new IllegalStateException("JNI failed to create a direct buffer view");
++        }
++        return view.order(ByteOrder.nativeOrder());
++    }
++
+     private static final class Backing {
+         private final long ptr;
+         private final AtomicInteger references = new AtomicInteger(1);
+@@ -157,4 +183,8 @@ public class NativeHeapBuffer implements NativeBuffer {
+     private static native long nAlloc(int size, int alignment);
+ 
+     private static native void nFree(long addr);
++
++    private static native ByteBuffer nView(long addr, int size);
++
++    private static native long nAddress(ByteBuffer buffer);
+ }
+diff --git a/src/main/java/com/elfmcys/ysm/natives/legacy/LegacyPayloadBuffer.java b/src/main/java/com/elfmcys/ysm/natives/legacy/LegacyPayloadBuffer.java
+index 500b249..383663d 100644
+--- a/src/main/java/com/elfmcys/ysm/natives/legacy/LegacyPayloadBuffer.java
++++ b/src/main/java/com/elfmcys/ysm/natives/legacy/LegacyPayloadBuffer.java
+@@ -3,7 +3,7 @@ package com.elfmcys.ysm.natives.legacy;
+ import com.elfmcys.ysm.buffer.ArrayBuffer;
+ import com.elfmcys.ysm.buffer.BufferType;
+ import com.elfmcys.ysm.buffer.NativeBuffer;
+-import org.lwjgl.system.MemoryUtil;
++import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
+ 
+ import java.lang.ref.Reference;
+ import java.nio.ByteBuffer;
+@@ -96,7 +96,7 @@ final class LegacyPayloadBuffer implements NativeBuffer {
+     public long ptr() {
+         requireOpen();
+         try {
+-            return MemoryUtil.memAddress(data);
++            return NativeHeapBuffer.addressOf(data) + data.position();
+         } finally {
+             Reference.reachabilityFence(this);
+         }
+diff --git a/src/main/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocol.java b/src/main/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocol.java
+index 2e06cef..fd081b1 100644
+--- a/src/main/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocol.java
++++ b/src/main/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocol.java
+@@ -1,6 +1,6 @@
+ package com.elfmcys.ysm.natives.legacy;
+ 
+-import org.lwjgl.system.MemoryUtil;
++import com.elfmcys.ysm.natives.buffer.NativeHeapBuffer;
+ 
+ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+@@ -168,7 +168,7 @@ final class NativeLegacyProtocol {
+             if (left.capacity() == 0) {
+                 continue;
+             }
+-            long leftStart = MemoryUtil.memAddress(left);
++            long leftStart = NativeHeapBuffer.addressOf(left) + left.position();
+             long leftEnd = leftStart + Integer.toUnsignedLong(left.capacity());
+             if (Long.compareUnsigned(leftEnd, leftStart) < 0) {
+                 throw new ProtocolException("Legacy payload address overflow");
+@@ -179,7 +179,7 @@ final class NativeLegacyProtocol {
+                 if (right.capacity() == 0) {
+                     continue;
+                 }
+-                long rightStart = MemoryUtil.memAddress(right);
++                long rightStart = NativeHeapBuffer.addressOf(right) + right.position();
+                 long rightEnd = rightStart + Integer.toUnsignedLong(right.capacity());
+                 if (Long.compareUnsigned(rightEnd, rightStart) < 0
+                         || Long.compareUnsigned(leftStart, rightEnd) < 0
 diff --git a/src/main/java/com/elfmcys/ysm/natives/render/FallbackVertexWriter.java b/src/main/java/com/elfmcys/ysm/natives/render/FallbackVertexWriter.java
 index 3414c6e..32e7868 100644
 --- a/src/main/java/com/elfmcys/ysm/natives/render/FallbackVertexWriter.java
@@ -8684,6 +8935,39 @@ index 2ee1541..754657e 100644
              return SendResult.SUCCESS;
          } catch (RuntimeException failure) {
              return SendResult.FAILED;
+diff --git a/src/main/java/com/elfmcys/ysm/network/forge/ForgeUniBufferIO.java b/src/main/java/com/elfmcys/ysm/network/forge/ForgeUniBufferIO.java
+index 5cf073f..c4e1cc0 100644
+--- a/src/main/java/com/elfmcys/ysm/network/forge/ForgeUniBufferIO.java
++++ b/src/main/java/com/elfmcys/ysm/network/forge/ForgeUniBufferIO.java
+@@ -6,7 +6,6 @@ import com.elfmcys.ysm.buffer.UniBuffer;
+ import io.netty.buffer.ByteBuf;
+ import io.netty.util.internal.PlatformDependent;
+ import net.minecraft.network.FriendlyByteBuf;
+-import org.lwjgl.system.MemoryUtil;
+ 
+ import java.lang.ref.Reference;
+ 
+@@ -32,7 +31,7 @@ public final class ForgeUniBufferIO {
+                         target.arrayOffset() + index, length);
+                 target.writerIndex(index + length);
+             } else {
+-                target.writeBytes(MemoryUtil.memByteBuffer(nativeBuffer.ptr(), length));
++                target.writeBytes(nativeBuffer.nio());
+             }
+         } finally {
+             Reference.reachabilityFence(source);
+@@ -70,8 +69,9 @@ public final class ForgeUniBufferIO {
+                 PlatformDependent.copyMemory(source.array(), source.arrayOffset() + sourceIndex,
+                         target.ptr() + targetOffset, length);
+             } else {
+-                source.getBytes(sourceIndex,
+-                        MemoryUtil.memByteBuffer(target.ptr() + targetOffset, length));
++                var targetView = target.nio();
++                targetView.position(targetOffset).limit(targetOffset + length);
++                source.getBytes(sourceIndex, targetView);
+             }
+         } finally {
+             Reference.reachabilityFence(source);
 diff --git a/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java b/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java
 index fe166e7..50dbb34 100644
 --- a/src/main/java/com/elfmcys/ysm/network/forge/MinecraftStateHandler.java
@@ -10106,6 +10390,69 @@ index 7b096f1..0cdc353 100644
  import org.junit.jupiter.api.Test;
  import org.objectweb.asm.Type;
  
+diff --git a/src/test/java/com/elfmcys/ysm/buffer/UniBufferOwnershipTest.java b/src/test/java/com/elfmcys/ysm/buffer/UniBufferOwnershipTest.java
+index 49059a9..49031ff 100644
+--- a/src/test/java/com/elfmcys/ysm/buffer/UniBufferOwnershipTest.java
++++ b/src/test/java/com/elfmcys/ysm/buffer/UniBufferOwnershipTest.java
+@@ -1,15 +1,21 @@
+ package com.elfmcys.ysm.buffer;
+ 
++import com.elfmcys.ysm.testutil.NativeLibraryExtension;
+ import com.elfmcys.ysm.util.CleanerUtil;
+ import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
+ 
+ import java.lang.ref.Cleaner;
+ import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
++import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+ import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertTrue;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+ 
++@ExtendWith(NativeLibraryExtension.class)
+ class UniBufferOwnershipTest {
+     @Test
+     void arrayAliasesShareOneOwnerWhileAcquireHasIndependentOwnership() {
+@@ -50,6 +56,36 @@ class UniBufferOwnershipTest {
+         assertEquals(16, borrowedNative.size());
+     }
+ 
++    @Test
++    void nativeAllocationHasDirectJniViewAndCopiesWithoutLwjgl() {
++        byte[] expected = {3, 1, 4, 1, 5, 9};
++        try (var owner = NativeBuffer.allocate(expected.length)) {
++            var view = owner.nio();
++            assertTrue(view.isDirect());
++            assertEquals(ByteOrder.nativeOrder(), view.order());
++            view.put(expected);
++
++            try (var copy = owner.copy()) {
++                byte[] actual = new byte[copy.size()];
++                copy.nio().get(actual);
++                assertArrayEquals(expected, actual);
++            }
++        }
++    }
++
++    @Test
++    void owningDirectViewStartsAtTheBuffersCurrentPosition() {
++        var backing = ByteBuffer.allocateDirect(8);
++        backing.put(new byte[]{10, 11, 12, 13, 14, 15, 16, 17});
++        backing.position(3);
++        try (var owner = NativeBuffer.move(backing)) {
++            assertEquals(5, owner.size());
++            byte[] actual = new byte[owner.size()];
++            owner.nio().get(actual);
++            assertArrayEquals(new byte[]{13, 14, 15, 16, 17}, actual);
++        }
++    }
++
+     @Test
+     void manualAndCleanerPathsShareExactlyOnceAction() {
+         var cleanupCount = new AtomicInteger();
 diff --git a/src/test/java/com/elfmcys/ysm/format/schema/model/ModelFileViewTest.java b/src/test/java/com/elfmcys/ysm/format/schema/model/ModelFileViewTest.java
 index 8481584..4e8f7db 100644
 --- a/src/test/java/com/elfmcys/ysm/format/schema/model/ModelFileViewTest.java
@@ -10446,6 +10793,33 @@ index 64bb45f..56423b5 100644
      private record NativeEvidenceRow(String line, String sourceSha256) {
      }
  }
+diff --git a/src/test/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocolTest.java b/src/test/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocolTest.java
+index e9b5f5d..6ae9f5d 100644
+--- a/src/test/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocolTest.java
++++ b/src/test/java/com/elfmcys/ysm/natives/legacy/NativeLegacyProtocolTest.java
+@@ -1,5 +1,6 @@
+ package com.elfmcys.ysm.natives.legacy;
+ 
++import com.elfmcys.ysm.testutil.NativeLibraryExtension;
+ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+ import java.nio.charset.StandardCharsets;
+@@ -7,6 +8,7 @@ import java.util.Arrays;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.concurrent.atomic.AtomicLong;
+ import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
+ 
+ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+@@ -15,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
++@ExtendWith(NativeLibraryExtension.class)
+ class NativeLegacyProtocolTest {
+     @Test
+     void validatesDescriptorAndReleasesResultExactlyOnce() {
 diff --git a/src/test/java/com/elfmcys/ysm/network/forge/YsmPacketCompressionBypassTest.java b/src/test/java/com/elfmcys/ysm/network/forge/YsmPacketCompressionBypassTest.java
 index 6829a14..3a4dbca 100644
 --- a/src/test/java/com/elfmcys/ysm/network/forge/YsmPacketCompressionBypassTest.java

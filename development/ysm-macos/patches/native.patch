@@ -289,6 +289,37 @@ index 7df1e3b..4b92cc4 100644
      PreparedBakeModel prepared;
      try {
          prepared.model.from_pb(BufStr(model_data));
+diff --git a/modules/lib-jni/src/buffer/native_heap_buffer.cc b/modules/lib-jni/src/buffer/native_heap_buffer.cc
+index e9b0161..fd6f1b6 100644
+--- a/modules/lib-jni/src/buffer/native_heap_buffer.cc
++++ b/modules/lib-jni/src/buffer/native_heap_buffer.cc
+@@ -23,4 +23,26 @@ YSM_JNI_ENTRY(
+     mi_free(reinterpret_cast<void*>(addr));
+     return OkStatus();
+ }
++
++YSM_JNI_ENTRY(
++    "Lcom/elfmcys/ysm/natives/buffer/NativeHeapBuffer;nView(JI)Ljava/nio/ByteBuffer;",
++    (addr, size)) {
++    YSM_ASSERT(addr != 0 && size > 0,
++               absl::InvalidArgumentError("invalid native buffer view"sv));
++    return env->NewDirectByteBuffer(reinterpret_cast<void*>(addr), size);
++}
++
++YSM_JNI_ENTRY(
++    "Lcom/elfmcys/ysm/natives/buffer/NativeHeapBuffer;nAddress(Ljava/nio/ByteBuffer;)J",
++    (buffer)) {
++    YSM_ASSERT(buffer,
++               absl::InvalidArgumentError("direct buffer is null"sv));
++    auto capacity = env->GetDirectBufferCapacity(buffer);
++    YSM_ASSERT(capacity >= 0,
++               absl::InvalidArgumentError("buffer is not direct"sv));
++    auto address = env->GetDirectBufferAddress(buffer);
++    YSM_ASSERT(address != nullptr || capacity == 0,
++               absl::InvalidArgumentError("direct buffer has no address"sv));
++    return reinterpret_cast<jlong>(address);
++}
+ }  // namespace ysm::lib::buffer
 diff --git a/modules/test/src/baked_model_test.cc b/modules/test/src/baked_model_test.cc
 index 7186e61..c83387a 100644
 --- a/modules/test/src/baked_model_test.cc
